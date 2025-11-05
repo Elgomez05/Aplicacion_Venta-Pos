@@ -1,0 +1,461 @@
+#:import hex kivy.utils.get_color_from_hex
+
+<BotonOscuro@Button>:
+    background_normal: ''
+    background_color: hex('#3d3735')
+
+<LabelOscuro@Label>:
+    canvas.before:
+        Color: 
+            rgba: hex('#3d3735')
+        Rectangle:
+            size: self.size
+            pos: self.pos
+
+<SelectableBoxLayout>:
+    # Draw a background to indicate selection
+    canvas.before:
+        Color:
+            rgba: hex('179d8e') if self.selected else hex('536160')
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    Label:
+        id: _hashtag
+        size_hint_x: .1
+        color: (0,0,0,1)
+    Label:
+        id: _articulo
+        size_hint_x: .5
+        color: (0,0,0,1)
+    Label:
+        id: _cantidad
+        size_hint_x: .1
+        color: (0,0,0,1)
+    Label:
+        id: _precio_por_articulo
+        size_hint_x: .15
+        color: (0,0,0,1)
+    Label:
+        id: _precio
+        size_hint_x: .15
+        color: (0,0,0,1)
+
+<SelectableBoxLayoutPopup>:
+    canvas.before:
+        Color:
+            rgba:  hex('179d8e') if self.selected else hex('536160')
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    Label:
+        id: _codigo
+        size_hint_x: .25
+    Label:
+        id: _articulo
+        size_hint_x: .5
+    Label:
+        id: _cantidad
+        size_hint_x: .1
+    Label:
+        id: _precio
+        size_hint_x: .15
+
+<RV>:
+    SelectableRecycleBoxLayout:
+        default_size: None, dp(36)
+        default_size_hint: 1, None
+        size_hint_y: None
+        height: self.minimum_height
+        orientation: 'vertical'
+        multiselect: False
+        touch_multiselect: False
+
+<ProductoPorNombrePopup>:
+    size_hint: .5, .55
+    title: 'Productos'
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint_y: .8
+            orientation: 'vertical'
+            BoxLayout:
+                size_hint_y: .1
+                Label:
+                    text: 'Codigo'
+                    size_hint_x: .25
+                Label:
+                    text: 'Normbre'
+                    size_hint_x: .5
+                Label:
+                    text: 'Cantidad'
+                    size_hint_x: .1
+                Label:
+                    text: 'Precio C/U'
+                    size_hint_x: .15
+            RV:
+                viewclass: 'SelectableBoxLayoutPopup'
+                id: rvs
+        BoxLayout:
+            size_hint_y: .2
+            Button:
+                text: 'Salir'
+                on_release: root.dismiss()
+            Button:
+                text: 'Seleccionar'
+                on_release: root.seleccionar_articulo()
+            
+
+<CambiarCantidadPopup>:
+    size_hint: .5, .5
+    title: 'Cambiar Cantidad'
+    auto_dismiss: False
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            Label:
+                id: info_nueva_cant_1
+            Label:
+                id: info_nueva_cant_2
+        Label:
+            id: notificacion_no_valido
+        TextInput:
+            id: nueva_cant_texto
+            multiline: False
+            hint_text: 'nueva cantidad'
+        Button:
+            id: nueva_cant_boton
+            text: 'Aceptar'
+            on_release: root.validar_input(root.ids.nueva_cant_texto.text)
+        Button:
+            text: 'Salir sin hacer cambios'
+            on_release: root.dismiss()
+
+<PagarPopup>:
+    size_hint: .5, .4
+    title: 'pagar'
+    BoxLayout:
+        orientation: 'vertical'
+        spacing: .5
+        padding: .5
+        BoxLayout:
+            size_hint_y: .25
+            Label:
+                size_hint_x: .5
+                text: 'Total a Pagar: '
+            Label:
+                id: total
+                size_hint_x: .5
+        BoxLayout:
+            size_hint_y: .25
+            Label:
+                size_hint_x: .25
+                text: 'Recibido: '
+            BoxLayout:
+                size_hint_x: .25
+                orientation: 'vertical'
+                TextInput:
+                    id: recibido
+                    hint_text: 'Cantidad recibida'
+                    multiline: False
+                    on_text_validate: root.mostrar_cambio()
+                Button:
+                    text: 'Aceptar'
+                    on_release: root.mostrar_cambio()
+        BoxLayout:
+            size_hint_y: .25
+            Label:
+                size_hint_x: .5
+                text: 'Cambio: '
+            Label:
+                id: cambio
+                size_hint_x: .5
+        BoxLayout:
+            size_hint_y: .25
+            Button:
+                text: 'Cancelar'
+                on_release: root.dismiss()
+            Button:
+                id: boton_pagar
+                disabled: True
+                text: 'Terminar pago'
+                on_release: root.finalizar_cobro()
+            
+
+<NuevaCompraPopup>:
+    size_hint: .3, .3
+    title: 'Cancelar Compra'
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            text: '¿Realizar nueva compra?'
+        BoxLayout:
+            Button:
+                id: aceptar 
+                text: 'Si'
+                on_release: root.nueva_compra(True)
+            Button:
+                text: 'No'
+                on_release: root.dismiss()
+
+<VentasWindow>:
+    canvas.before:
+        Color: 
+            rgba: hex('21de6b')
+        Rectangle:
+            size: self.size
+            pos: self.pos
+    orientation: 'vertical'
+    BoxLayout:
+        size_hint_y: .1 
+        spacing: .5 
+        Label:
+            id: bienvenido_label
+            size_hint_x: .14
+            text:'Bienvenido:'
+            color: hex('3d3735')
+        Label:
+            id: bienvenido_log
+            size_hint_x: .14
+            color: hex('3d3735')
+            size_hint_x: .11
+        GridLayout:
+            size_hint_x: .25
+            rows: 2
+            cols: 2
+            Label:
+                text: 'Fecha:'
+                color: hex('3d3735')
+            Label:
+                id:    fecha
+                color: hex('3d3735')
+            Label:
+                text: 'Hora:'
+                color: hex('3d3735')
+            Label:
+                id:    hora
+                color: hex('3d3735')
+        Label:
+            size_hint_x: .2
+        BotonOscuro:
+            id: admin_boton
+            size_hint_x: .15
+            text: 'Admin'
+            on_release: root.admin()   
+        BotonOscuro:
+            id: signout_boton
+            size_hint_x: .15 
+            text: 'Cerrar sesion'
+            on_release: root.signout() 
+    BoxLayout:
+        canvas.before:
+            Color: 
+                rgba: hex('FFFFFF')
+            Rectangle:
+                size: self.size
+                pos: self.pos
+        size_hint_y: .87
+        spacing: .5
+        BoxLayout:
+            size_hint_x: .7
+            orientation: 'vertical'
+            spacing: .5
+            GridLayout:
+                spacing: .5
+                size_hint_y: .1
+                rows: 2
+                cols: 2
+                LabelOscuro: 
+                    text: 'Buscar por Código'
+                LabelOscuro:
+                    text: 'Buscar por Normbre'
+                TextInput:
+                    id: buscar_codigo
+                    multiline: False
+                    on_text_validate: root.agregar_producto_codigo(self.text)
+                TextInput:
+                    id:buscar_nombre
+                    multiline: False
+                    on_text_validate: root.agregar_producto_nombre(self.text)
+                    
+            BoxLayout:
+                size_hint_y: .8
+                orientation: 'vertical'
+                BoxLayout:
+                    size_hint_y: .05
+                    spacing: .5
+                    LabelOscuro:
+                        text: '#'
+                        size_hint_x: .1
+                    LabelOscuro:
+                        text: 'Articulo'
+                        size_hint_x: .5
+                    LabelOscuro:
+                        text: 'Cantidad'
+                        size_hint_x: .1
+                    LabelOscuro:
+                        text: 'Precio C/U'
+                        size_hint_x: .15
+                    LabelOscuro:
+                        text: 'Precio total '
+                        size_hint_x: .15
+                        
+                RV:
+                    viewclass: 'SelectableBoxLayout'
+                    id: rvs
+            BoxLayout:
+                size_hint_y: .1
+                spacing: .5
+                BotonOscuro:
+                    id: borrar_articulo
+                    text: 'Borrar Articulo'
+                    on_release: root.eliminar_producto()
+                BotonOscuro:
+                    id: cambiar_cantidad
+                    text: 'Cambiar Cantidad'
+                    on_release: root.modificar_producto()
+        BoxLayout:
+            size_hint_x: .3
+            orientation: 'vertical'
+            canvas.before:
+                Color:
+                    rgba: hex('c5dbcc')
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            GridLayout:
+                canvas.before:
+                    Color: 
+                        rgba: hex('000000')
+                    Rectangle:
+                        size: self.size
+                        pos: self.pos
+                size_hint_y: .4
+                rows: 2
+                cols: 2
+                Label:
+                    text: 'Sub-total'
+                Label:
+                    id: sub_total
+                    text: '0.00'
+                Label:
+                    text: 'Total'
+                Label:
+                    id: total
+                    text: '0.00'
+            BoxLayout:
+                size_hint_y: .6
+                orientation: 'vertical'
+                spacing: .5
+                Label:
+                    id: notificacion_falla
+                    size_hint_y: .25
+                    color: hex('#F00A0A')                
+                Label:
+                    id:notificacion_exito
+                    size_hint_y: .25
+                    color: hex('1e7431')
+                BotonOscuro:
+                    size_hint_y: .25
+                    id: pagar
+                    text: 'Pagar'
+                    on_release: root.pagar() 
+                BotonOscuro:
+                    size_hint_y: .25
+                    id: nueva_compra
+                    text: 'Nueva Compra'
+                    on_release: root.nueva_compra() 
+                BotonOscuro:
+                    size_hint_y: .25
+                    id: nueva_venta
+                    text: 'Nueva Venta'
+                    on_release: root.nueva_venta_popup()
+
+    BoxLayout:
+        size_hint_y: .03
+
+
+<ConfirmarPagoPopup>:
+    size_hint: .6, .6
+    title: 'Confirmar pago'
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint_y: .1
+            LabelOscuro:
+                text: 'Resumen de compra'
+        BoxLayout:
+            size_hint_y: .75
+            orientation: 'vertical'
+            BoxLayout:
+                size_hint_y: .12
+                spacing: .5
+                LabelOscuro:
+                    text: '#'
+                    size_hint_x: .1
+                LabelOscuro:
+                    text: 'Articulo'
+                    size_hint_x: .5
+                LabelOscuro:
+                    text: 'Cantidad'
+                    size_hint_x: .1
+                LabelOscuro:
+                    text: 'Precio C/U'
+                    size_hint_x: .15
+                LabelOscuro:
+                    text: 'Precio total '
+                    size_hint_x: .15
+            RV:
+                id: resumen_rv
+                viewclass: 'SelectableBoxLayout'
+        BoxLayout:
+            size_hint_y: .15
+            spacing: .5
+            Label:
+                text: 'Total:'
+                size_hint_x: .3
+            Label:
+                id: total_confirmacion
+                size_hint_x: .7
+        BoxLayout:
+            size_hint_y: .1
+            Button:
+                text: 'Cancelar'
+                on_release: root.dismiss()
+            Button:
+                text: 'Confirmar'
+                on_release: root.confirmar()
+
+<TipoFacturaPopup>:
+    size_hint: .4, .3
+    title: 'Imprimir factura'
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            size_hint_y: .6
+            Button:
+                text: 'Factura Electrónica'
+                on_release: root.imprimir_electronica()
+            Button:
+                text: 'Factura de Venta'
+                on_release: root.imprimir_venta()
+        BoxLayout:
+            size_hint_y: .4
+            Button:
+                text: 'Cancelar'
+                on_release: root.dismiss()
+
+<NuevaVentaPopup>:
+    size_hint: 1, 1
+    title: 'Nueva venta'
+    auto_dismiss: True
+    BoxLayout:
+        orientation: 'vertical'
+        BoxLayout:
+            id: contenido
+            size_hint_y: .92
+        BoxLayout:
+            size_hint_y: .08
+            Button:
+                text: 'Cerrar y volver'
+                on_release: root.dismiss()
