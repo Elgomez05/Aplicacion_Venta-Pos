@@ -1,74 +1,87 @@
 #:import hex kivy.utils.get_color_from_hex
 
 <SigninWindow>:
-    orientation: 'vertical'
-    canvas.before:
-        Color:
-            rgba: hex('#338e8e')
-        Rectangle:
-            #source: 'Src/Asset/Img-venta-Pos.png'
-            size: self.size
-            pos: self.pos
-    BoxLayout:
-        size_hint_y: 0.05
-    BoxLayout:
-        size_hint_y: 0.9
-        canvas.before:
-            Color:
-                rgba: hex('#e7f8f8')
-            Rectangle:
-                size: self.size
-                pos: self.pos
-        Label:
-            size_hint_x: 0.3
+    FloatLayout:
+        # Imagen de fondo
+        Image:
+            source: root.bg_image_path
+            allow_stretch: True
+            keep_ratio: False
+            size_hint: 1, 1
+            pos_hint: {"x": 0, "y": 0}
+
+        # Formulario centrado y compacto
         BoxLayout:
-            size_hint_x: 0.4
             orientation: 'vertical'
+            size_hint: 0.45, 0.55  # Más compacto
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+            spacing: 15
+            padding: 30
+            
+            canvas.before:
+                Color:
+                    rgba: hex('#e7f8f8')[:3] + [0.9]  # Transparencia en el Color
+                Rectangle:
+                    size: self.size
+                    pos: self.pos
+            
+            # Título
             Label:
                 size_hint_y: 0.15
                 font_size: '20sp'
                 text: 'Bienvenido'
                 color: (0, 0, 0, 1)
+                bold: True
+            
+            # Notificación
             Label:
                 id: signin_notificacion
-                size_hint_y: 0.15
-                color: hex('#fa0f04')
-            TextInput:
-                id: username
                 size_hint_y: 0.1
+                color: hex('#fa0f04')
+                font_size: '14sp'
+            
+            # Campos de entrada
+            TextInput:
+                id: username 
+                size_hint_y: 0.12
                 hint_text: 'Nombre de usuario'
                 multiline: False
                 write_tab: False
                 on_text_validate: root.verificar_usuario(self.text, password.text, recordar_checkbox.active)
+            
             TextInput:
-                id: password
-                size_hint_y: 0.1
+                id: password 
+                size_hint_y: 0.12
                 hint_text: 'Contraseña'
                 multiline: False
                 write_tab: False
                 password: True
                 on_text_validate: root.verificar_usuario(username.text, self.text, recordar_checkbox.active)
 
+            # Recordar usuario
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: 0.1
-                
                 CheckBox: 
                     id: recordar_checkbox
                     size_hint_x: 0.2
+                    checkbox_color: hex('#0a7cff')  # Color azul moderno
+                    canvas.before:
+                        Color:
+                            rgba: (0, 0.6, 1, 1) if self.active else (0.7, 0.7, 0.7, 1)
+                        Rectangle:
+                            size: self.size
+                            pos: self.pos
                 Label:
                     text: 'Recordar usuario'
                     size_hint_x: .80
                     color: (0, 0, 0, 1)
+            
+            # Botón
             Button:
-                size_hint_y: 0.1
+                size_hint_y: 0.15
                 background_normal: ''
                 background_color: (0, 0, 0, 1)
                 text: 'Ingresar'
+                font_size: '16sp'
                 on_release: root.verificar_usuario(username.text, password.text, recordar_checkbox.active)
-            Label:
-                size_hint_y: 0.4
-        Label:
-            size_hint_x: 0.3
-    BoxLayout:
-        size_hint_y: 0.05

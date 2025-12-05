@@ -207,46 +207,66 @@
             pos: self.pos
     orientation: 'vertical'
     BoxLayout:
-        size_hint_y: .1 
-        spacing: .5 
+        size_hint_y: .1
+        spacing: .5
+
         Label:
             id: bienvenido_label
-            size_hint_x: .14
+            size_hint_x: .10
             text:'Bienvenido:'
             color: hex('3d3735')
+            halign: 'right'
+            valign: 'middle'
+            text_size: self.size
+
         Label:
             id: bienvenido_log
-            size_hint_x: .14
+            size_hint_x: .10
             color: hex('3d3735')
-            size_hint_x: .11
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+        Label:
+            id: encabezado_terminal
+            size_hint_x: .20
+            font_size: '17sp'
+            bold: True
+            color: hex('3d3735')
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+            padding_x: 10
+
         GridLayout:
-            size_hint_x: .25
+            size_hint_x: .30
             rows: 2
             cols: 2
             Label:
                 text: 'Fecha:'
                 color: hex('3d3735')
             Label:
-                id:    fecha
+                id: fecha
                 color: hex('3d3735')
             Label:
                 text: 'Hora:'
                 color: hex('3d3735')
             Label:
-                id:    hora
+                id: hora
                 color: hex('3d3735')
-        Label:
-            size_hint_x: .2
+
         BotonOscuro:
             id: admin_boton
             size_hint_x: .15
             text: 'Admin'
-            on_release: root.admin()   
+            on_release: root.admin()
+
         BotonOscuro:
             id: signout_boton
             size_hint_x: .15 
             text: 'Cerrar sesion'
-            on_release: root.signout() 
+            on_release: root.signout()
+ 
     BoxLayout:
         canvas.before:
             Color: 
@@ -365,11 +385,11 @@
                     id: nueva_compra
                     text: 'Nueva Compra'
                     on_release: root.nueva_compra() 
-                BotonOscuro:
-                    size_hint_y: .25
-                    id: nueva_venta
-                    text: 'Nueva Venta'
-                    on_release: root.nueva_venta_popup()
+                #BotonOscuro:
+                    #size_hint_y: .25
+                    #id: nueva_venta
+                    #text: 'Nueva Venta'
+                    #on_release: root.nueva_venta_popup()
 
     BoxLayout:
         size_hint_y: .03
@@ -445,17 +465,17 @@
                 text: 'Cancelar'
                 on_release: root.dismiss()
 
-<NuevaVentaPopup>:
-    size_hint: 1, 1
-    title: 'Nueva venta'
-    auto_dismiss: True
-    BoxLayout:
-        orientation: 'vertical'
-        BoxLayout:
-            id: contenido
-            size_hint_y: .92
-        BoxLayout:
-            size_hint_y: .08
-            Button:
-                text: 'Cerrar y volver'
-                on_release: root.dismiss()
+#<NuevaVentaPopup>:
+    #size_hint: 1, 1
+    #title: 'Nueva venta'
+    #auto_dismiss: True
+    #BoxLayout:
+        #orientation: 'vertical'
+        #BoxLayout:
+            #id: contenido
+            #size_hint_y: .92
+        #BoxLayout:
+            #size_hint_y: .08
+            #Button:
+                #text: 'Cerrar y volver'
+                #on_release: root.dismiss()
