@@ -9,10 +9,28 @@ from kivy.uix.recycleview.layout import LayoutSelectionBehavior
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
 from kivy.lang import Builder
+from kivy.core.window import Window
 
-Builder.load_file('Src/Views/ventas_view.kv')
-
+import sys
+import subprocess
+import os
+import json
+import logging
 from datetime import datetime, timedelta
+
+os.environ["KIVY_NO_ARGS"] = "1"
+
+def format_currency(value):
+    try:
+        value = float(value)
+        return f"${value:,.0f}".replace(",", ".")
+    except:
+        return "$0"
+
+log = logging.getLogger(__name__)
+
+kv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ventas_view.kv")
+Builder.load_file(kv_path)
 
 from Src.Views.sqlqueries import QueriesSQLServer
 
@@ -51,8 +69,8 @@ class SelectableBoxLayout(RecycleDataViewBehavior, BoxLayout):
         self.ids['_hashtag'].text = str(1+index)
         self.ids['_articulo'].text = data['nombre'].capitalize()                         
         self.ids['_cantidad'].text = str(data['cantidad_carrito'])
-        self.ids['_precio_por_articulo'].text = str("{:.2f}".format(data['precio']))
-        self.ids['_precio'].text = str("{:.2f}".format(data['precio_total']))
+        self.ids['_precio_por_articulo'].text = format_currency(data['precio'])
+        self.ids['_precio'].text = format_currency(data['precio_total'])
         return super(SelectableBoxLayout, self).refresh_view_attrs(
             rv, index, data)
 
@@ -172,7 +190,7 @@ class ProductoPorNombrePopup(Popup):
     def mostrar_articulos(self):
         connection = QueriesSQLServer.create_connection(server, database, username, password)
         if connection:
-            print(f"Conexión exitosa a la base de datos '{database}'")
+            logging.info(f"Conexión exitosa a la base de datos {database}")
 
         query = "SELECT * FROM productos"
         inventario_sql = QueriesSQLServer.execute_read_query(connection, query)
@@ -182,6 +200,7 @@ class ProductoPorNombrePopup(Popup):
                 if nombre[3] <= 0:  # Verificar si el producto está agotado
                 # Mostrar alerta
                     self.ventana_ventas.ids.notificacion_falla.text = f"El producto '{nombre[1]}' está agotado."
+                    logging.warning(f"El producto: {nombre} esta agotado")
                     continue
                 producto={'codigo': nombre[0], 'nombre': nombre[1], 'precio': nombre[2], 'cantidad': nombre[3]}
                 self.ids.rvs.agregar_articulo(producto)
@@ -224,15 +243,15 @@ class PagarPopup(Popup):
         self.total=total
         # Callback que se ejecuta cuando el cobro termina correctamente
         self.on_pago_completo=on_pago_completo_callback
-        self.ids.total.text="{:.2f}".format(self.total)
+        self.ids.total.text=format_currency(self.total)
         self.ids.boton_pagar.bind(on_release=self.dismiss)
         
     def mostrar_cambio(self):
-        recibido= self.ids.recibido.text
+        recibido = self.ids.recibido.text.replace(".", "")
         try:
             cambio=float(recibido)-float(self.total)
             if cambio>=0:
-                self.ids.cambio.text="{:.2f}".format(cambio)
+                self.ids.cambio.text=format_currency(cambio)
                 self.ids.boton_pagar.disabled=False
             else:
                 self.ids.cambio.text="Pago menor a cantidad a pagar"
@@ -259,9 +278,9 @@ class ConfirmarPagoPopup(Popup):
         try:
             self.ids.resumen_rv.data = [dict(item) for item in self.ventana_ventas.ids.rvs.data]
         except Exception as e:
-            print(f"No se pudo cargar el resumen del carrito: {e}")
+            logging.error(f"No se pudo cargar el resumen del carrito: {e}")
         # Mostrar total
-        self.ids.total_confirmacion.text = "{:.2f}".format(self.ventana_ventas.total)
+        self.ids.total_confirmacion.text = format_currency(self.ventana_ventas.total)
 
     def confirmar(self):
         if callable(self.confirmar_callback):
@@ -286,34 +305,40 @@ class TipoFacturaPopup(Popup):
             self.confirmar_pago()
         self.dismiss()
 
-class NuevaVentaPopup(Popup):
-    def __init__(self, ventana_anterior, actualizar_inventario_callback, **kwargs):
-        super(NuevaVentaPopup, self).__init__(**kwargs)
-        self.ventana_anterior = ventana_anterior
-        # Crear una nueva ventana de ventas dentro del popup
-        try:
-            nueva = VentasWindow(actualizar_inventario_callback)
-            # Propagar usuario logueado si existe
-            if getattr(self.ventana_anterior, 'user_data', None):
-                nueva.usuario_loggin(self.ventana_anterior.user_data)
-            # Insertar en el contenedor definido en KV (id: contenido)
-            self.ids.contenido.add_widget(nueva)
-        except Exception as e:
-            print(f"Error creando nueva ventana de venta: {e}")
-        # Al cerrar, restaurar visibilidad/interacción de la ventana anterior
-        self.bind(on_dismiss=self._restaurar_anterior)
+# class NuevaVentaPopup(Popup):
+#     def __init__(self, ventana_anterior, actualizar_inventario_callback, **kwargs):
+#         super(NuevaVentaPopup, self).__init__(**kwargs)
+#         self.ventana_anterior = ventana_anterior
+#         # Crear una nueva ventana de ventas dentro del popup
+#         try:
+#             nueva = VentasWindow(actualizar_inventario_callback)
+#             # Propagar usuario logueado si existe
+#             if getattr(self.ventana_anterior, 'user_data', None):
+#                 nueva.usuario_loggin(self.ventana_anterior.user_data)
+#             # Insertar en el contenedor definido en KV (id: contenido)
+#             self.ids.contenido.add_widget(nueva)
+#         except Exception as e:
+#             logging.info(f"Error creando nueva ventana de venta: {e}")
+#         # Al cerrar, restaurar visibilidad/interacción de la ventana anterior
+#         self.bind(on_dismiss=self._restaurar_anterior)
 
-    def _restaurar_anterior(self, *_):
-        try:
-            self.ventana_anterior.disabled = False
-            self.ventana_anterior.opacity = 1
-        except Exception:
-            pass
+#     def _restaurar_anterior(self, *_):
+#         try:
+#             self.ventana_anterior.disabled = False
+#             self.ventana_anterior.opacity = 1
+#         except Exception:
+#             pass
 
 class VentasWindow(BoxLayout):
     user_data=None
-    def __init__(self, actualizar_inventario_callback, **kwargs):
+    def __init__(self, actualizar_inventario_callback, terminal_id=1, user_data=None, **kwargs):
         super().__init__(**kwargs)
+
+        self.terminal_id = terminal_id
+        self.user_data = user_data or {"nombre": "Usuario", "tipo": "empleado"}
+        self._actualizar_encabezado(self.user_data)
+
+
         self.total=0.0
         self.ids.rvs.modificar_producto=self.modificar_producto
         self.actualizar_inventario=actualizar_inventario_callback
@@ -321,11 +346,13 @@ class VentasWindow(BoxLayout):
         self.ahora=datetime.now()
         self.ids.fecha.text=self.ahora.strftime("%d/%m/%y")
         Clock.schedule_interval(self.actualizar_hora, 1)
+
+        Window.bind(on_key_down=self._tecla_presionada)
         
     def agregar_producto_codigo(self, codigo):
         connection = QueriesSQLServer.create_connection(server, database, username, password)
         if connection:
-            print(f"Conexión exitosa a la base de datos '{database}'")
+            logging.info(f"Conexión exitosa a la base de datos {database}")
 
         query = "SELECT * FROM productos"
         inventario_sql = QueriesSQLServer.execute_read_query(connection, query)
@@ -354,20 +381,20 @@ class VentasWindow(BoxLayout):
 
     def agregar_producto(self, articulo):  
         self.total+=articulo['precio']
-        self.ids.sub_total.text='$ '+ "{:.2f}".format(self.total)
+        self.ids.sub_total.text=format_currency(self.total)
         self.ids.rvs.agregar_articulo(articulo)
 
     def eliminar_producto(self):
         menos_precio=self.ids.rvs.eliminar_articulo()
         self.total-=menos_precio
-        self.ids.sub_total.text='$ '+ "{:.2f}".format(self.total)
+        self.ids.sub_total.text=format_currency(self.total)
 
     def modificar_producto(self, cambio=True, nuevo_total=None):
        if cambio:
             self.ids.rvs.modificar_articulo() 
        else:
            self.total=nuevo_total
-           self.ids.sub_total.text='$ '+ "{:.2f}".format(self.total)
+           self.ids.sub_total.text=format_currency(self.total)
 
     def actualizar_hora(self, *args):
         self.ahora=self.ahora+timedelta(seconds=1)
@@ -389,20 +416,20 @@ class VentasWindow(BoxLayout):
         popup_tipo = TipoFacturaPopup(self.pagado)
         popup_tipo.open()
 
-    def nueva_venta_popup(self):
-        # Poner esta ventana en segundo plano e iniciar una nueva en un Popup
-        try:
-            self.disabled = True
-            self.opacity = 0
-        except Exception:
-            pass
-        popup = NuevaVentaPopup(self, self.actualizar_inventario)
-        popup.open()
+    # def nueva_venta_popup(self):
+    #     # Poner esta ventana en segundo plano e iniciar una nueva en un Popup
+    #     try:
+    #         self.disabled = True
+    #         self.opacity = 0
+    #     except Exception:
+    #         pass
+    #     popup = NuevaVentaPopup(self, self.actualizar_inventario)
+    #     popup.open()
 
     def pagado(self):
         self.ids.notificacion_exito.text='Pago realizado con exito'
         self.ids.notificacion_falla.text=''
-        self.ids.total.text="{:.2f}".format(self.total)
+        self.ids.total.text=format_currency(self.total)
         self.ids.buscar_codigo.disabled=True
         self.ids.buscar_nombre.disabled=True
         self.ids.borrar_articulo.disabled=True
@@ -410,7 +437,7 @@ class VentasWindow(BoxLayout):
         self.ids.pagar.disabled=True
         connection = QueriesSQLServer.create_connection(server, database, username, password)
         if connection:
-            print(f"Conexión exitosa a la base de datos '{database}'")
+            logging.info(f"Conexión exitosa a la base de datos: {database}")
         actualizar="""
         UPDATE
             productos
@@ -429,13 +456,13 @@ class VentasWindow(BoxLayout):
         venta_tuple = (self.total, self.ahora, self.user_data['username'])
 
         try:
-            print("Datos insertados correctamente en:", venta_tuple)
+            logging.info(f"Datos insertados correctamente en:, {venta_tuple}")
             venta_id = QueriesSQLServer.execute_query(connection, venta, venta_tuple)
             if venta_id is None:
                 raise Exception("No se pudo obtener el ID de la venta. Verifica la inserción.")
-            print("ID insertado en la tabla ventas:", venta_id)
+            logging.info(f"ID insertado en la tabla ventas:, {venta_id}")
         except Exception as e:
-            print(f"Error al insertar en la tabla ventas: {e}")
+            logging.error(f"Error al insertar en la tabla ventas: {e}")
 
         ventas_detalle = """
         INSERT INTO ventas_detalle (id_venta, precio, producto, cantidad)
@@ -448,7 +475,7 @@ class VentasWindow(BoxLayout):
                 nueva_cantidad=producto['cantidad_inventario']-producto['cantidad_carrito']
             producto_tuple=(nueva_cantidad, producto['codigo'])
             ventas_detalle_tuple = (venta_id, producto['precio'], producto['codigo'], producto['cantidad_carrito'])
-            print("Datos insertados correctamente en:", ventas_detalle_tuple)
+            logging.info(f"Datos insertados correctamente en:, {ventas_detalle_tuple}")
             actualizar_admin.append({'codigo': producto['codigo'], 'cantidad': nueva_cantidad})
             QueriesSQLServer.execute_query(connection, ventas_detalle, ventas_detalle_tuple)
             QueriesSQLServer.execute_query(connection, actualizar, producto_tuple)
@@ -481,25 +508,27 @@ class VentasWindow(BoxLayout):
         self.parent.parent.current='scrn_admin'
         #connection = QueriesSQLServer.create_connection(server, database, username, password)
         #if connection:
-            #print(f"Conexión exitosa a la base de datos '{database}'")
+            #logging.info(f"Conexión exitosa a la base de datos '{database}'")
 
         #select_products = "SELECT * FROM productos"
         #productos = QueriesSQLServer.execute_read_query(connection, select_products)
         #for producto in productos:
-        #    print(producto)
+        #    logging.info(producto)
 
-        print("admin presionado")
+        logging.info("admin presionado")
 
     def signout(self):
         if self.ids.rvs.data:
             self.ids.notificacion_falla.text='Compra iniciada'
         else:
             self.parent.parent.current='scrn_signin'
-            print("Signout presionado")
+            logging.info("Signout presionado")
 
     def usuario_loggin(self, user_data):
-        self.ids.bienvenido_log.text=''+user_data['nombre']
+        # self.ids.bienvenido_log.text=''+user_data['nombre']
         self.user_data=user_data
+        rol = "Admin" if user_data['tipo'] == 'admin' else "Empleado"
+        self._actualizar_encabezado(user_data)
         if user_data['tipo']=='empleado':
             self.ids.admin_boton.disabled=True
             self.ids.admin_boton.text='Admin'
@@ -508,8 +537,38 @@ class VentasWindow(BoxLayout):
             self.ids.admin_boton.disabled=False
             #self.ids.admin_boton.text='Admin'
             #self.ids.admin_boton.opacity=1
-            
-    
+
+    def _actualizar_encabezado(self, user_data):
+        nombre = user_data.get("nombre", "Usuario")
+        rol = "Admin" if user_data.get('tipo') == 'admin' else "Empleado"
+        self.ids.encabezado_terminal.text = f"Terminal POS #{self.terminal_id} — Usuario: {nombre} ({rol})"
+
+
+    def _tecla_presionada(self, window, key, scancode, codepoint, modifiers):
+        if key == 293:  # F12
+            logging.info(f"F12 -> Abriendo SubTerminal POS {key}")
+
+            # Nuevo terminal basado en este mismo número
+            nuevo_id = self.terminal_id + 1
+
+            args = json.dumps({"terminal_id": nuevo_id, "user": self.user_data})
+
+            # Detectar si ejecuta como EXE o script
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable
+                cmd = [exe_path, "--subterminal", args]
+            else:
+                main_path = os.path.abspath("main.py")
+                cmd = [sys.executable, main_path, "--subterminal", args]
+
+            try:
+                subprocess.Popen(cmd)
+                logging.info(f"SubTerminal #{nuevo_id} iniciada correctamente")
+            except Exception as e:
+                logging.error(f"Error abriendo subterminal: {e}")
+
+            return True
+
 
 
 
@@ -518,6 +577,4 @@ class VentasApp(App):
         return VentasWindow()
     
 if __name__ == '__main__':
-    VentasApp().run()
-        
-    
+    VentasApp().run()########v3

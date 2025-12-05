@@ -22,13 +22,22 @@ from decimal import Decimal
 from kivy.properties import ObjectProperty
 
 from Src.Views.sqlqueries import QueriesSQLServer
+import logging
+
+os.environ["KIVY_NO_ARGS"] = "1"
+log = logging.getLogger(__name__)
 
 server = 'DESKTOP-QGCQ59D\\SQLEXPRESS'
 database = 'PuntoventaDB'
 username = 'Elgomez05'
 password = '123456'
 
-Builder.load_file('Src/Views/admin_view.kv')
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KV_PATH = os.path.join(BASE_DIR, "admin_view.kv")
+Builder.load_file(KV_PATH)
+
+# Builder.load_file('Src/Views/admin_view.kv')
 
 
 class SelectableRecycleBoxLayout(FocusBehavior, LayoutSelectionBehavior, RecycleBoxLayout):
@@ -260,7 +269,7 @@ class VistaProductos(Screen):
     def cargar_productos(self, *args):
         _productos = []
         connection = QueriesSQLServer.create_connection(server, database, username, password)
-        print(f"Conexion exitosa '{database}'")
+        logging.info(f"Conexion exitosa. {database}")
         inventario_sql = QueriesSQLServer.execute_read_query(connection, "SELECT * from productos")
         if inventario_sql:
             for producto in inventario_sql:
@@ -291,7 +300,7 @@ class VistaProductos(Screen):
                     (?, ?, ?, ?);
                 """
                 QueriesSQLServer.execute_query(connection, crear_producto, producto_tuple)
-                print("Producto agregado correctamente.:", producto_tuple )
+                logging.info(f"Producto agregado correctamente.:, {producto_tuple}")
                 self.ids.rv_productos.data.append(validado)
                 self.ids.rv_productos.refresh_from_data()
                 
@@ -316,7 +325,7 @@ class VistaProductos(Screen):
                 
             """
             QueriesSQLServer.execute_query(connection, actualizar_producto, producto_tuple)
-            print("Producto modificado correctamente.:", producto_tuple )
+            logging.info(f"Producto modificado correctamente.:, {producto_tuple}")
             self.ids.rv_productos.data[indice]['nombre']=validado['nombre']
             self.ids.rv_productos.data[indice]['cantidad']=validado['cantidad']
             self.ids.rv_productos.data[indice]['precio']=validado['precio']
@@ -338,7 +347,7 @@ class VistaProductos(Screen):
                 connection = QueriesSQLServer.create_connection(server, database, username, password)
                 borrar_producto = """ DELETE from productos WHERE codigo = ? """
                 QueriesSQLServer.execute_query(connection, borrar_producto, producto_tuple)
-                print("Producto eliminado correctamente.:", producto_tuple )
+                logging.info(f"Producto eliminado correctamente.:, {producto_tuple}" )
                 rv.data.pop(indice)
                 rv.refresh_from_data()
                 self.mostrar_notificacion_popup(f"Producto '{producto_tuple[0]}' eliminado correctamente.")
@@ -467,7 +476,7 @@ class VistaUsuarios(Screen):
                     (?, ?, ?, ?);
                 """
                 QueriesSQLServer.execute_query(connection, crear_usuario, usuario_tuple)
-                print("Usuario agregado correctamente.:", usuario_tuple )
+                logging.info(f"Usuario agregado correctamente.: {usuario_tuple}")
                 self.ids.rv_usuarios.data.append(validado)
                 self.ids.rv_usuarios.refresh_from_data()
                 self.mostrar_notificacion_popup(f"Usuario '{validado['nombre']}' agregado correctamente.")
@@ -490,7 +499,7 @@ class VistaUsuarios(Screen):
                 username=?;
             """
             QueriesSQLServer.execute_query(connection, actualizar_usuario, usuario_tuple)
-            print("Usuario modificado correctamente.:", usuario_tuple )
+            logging.info(f"Usuario modificado correctamente.:, {usuario_tuple}" )
             self.ids.rv_usuarios.data[indice]['nombre']=validado['nombre']
             self.ids.rv_usuarios.data[indice]['password']=validado['password']
             self.ids.rv_usuarios.data[indice]['tipo']=validado['tipo']
@@ -511,7 +520,7 @@ class VistaUsuarios(Screen):
                 connection = QueriesSQLServer.create_connection(server, database, username, password)
                 borrar_usuario = """ DELETE from usuarios WHERE username = ? """
                 QueriesSQLServer.execute_query(connection, borrar_usuario, usuario_tuple)
-                print("Usuario eliminado correctamente.:", usuario_tuple )
+                logging.info(f"Usuario eliminado correctamente.: {usuario_tuple}")
                 rv.data.pop(indice)
                 rv.refresh_from_data()
                 self.mostrar_notificacion_popup(f"Usuario '{usuario_tuple[0]}' eliminado correctamente.")
@@ -577,7 +586,7 @@ class VistaVentas(Screen):
 
             fecha_reporte = self.ids.date_id.text
             pdf_nombre = f"{pdf_reporte}reporte_{fecha_reporte}.pdf"
-            print("Archivo guardado correctamente:", pdf_reporte)
+            logging.info(f"Archivo guardado correctamente: {pdf_reporte}")
 
             productos_pdf = []
             total = 0
@@ -591,7 +600,7 @@ class VistaVentas(Screen):
                             cantidad = int(item[4])  # Convertir cantidad a int
                             total += precio * cantidad
                         except (ValueError, TypeError) as e:
-                            print(f"Error convirtiendo datos: {e}, item: {item}")
+                            logging.error(f"Error convirtiendo datos: {e}, item: {item}")
                             continue
 
                     item_found = next((producto for producto in productos_pdf if producto["codigo"] == item[3]), None)
@@ -677,7 +686,7 @@ class VistaVentas(Screen):
             venta_id = self.ids.ventas_rv.data[indice].get("id_venta")
             
             if venta_id is None:
-                print(f"Error: id_venta no encontrado en índice {indice}")
+                logging.error(f"Error: id_venta no encontrado en índice. {indice}")
                 return
             
             # Buscar su detalle en la lista actual
@@ -694,11 +703,11 @@ class VistaVentas(Screen):
                 # Cerrar el popup cuando se cierre
                 p.bind(on_dismiss=lambda *args: setattr(self, 'popup_actual', None))
                 p.mostrar()
-                print(f"Mostrando detalle para venta {venta_id} con {len(venta_detalle)} productos")
+                logging.info(f"Mostrando detalle para venta {venta_id} con {len(venta_detalle)} productos")
             else:
-                print(f"Error: No se encontró detalle para venta {venta_id}")
+                logging.error(f"Error: No se encontró detalle para venta {venta_id}")
         else:
-            print(f"Error: Índice inválido {indice} o no hay venta seleccionada")
+            logging.error(f"Error: Índice inválido {indice} o no hay venta seleccionada")
 
             
 ## implementacion Popup a ventas
@@ -715,7 +724,7 @@ class VistaVentas(Screen):
     def cargar_usuarios(self):
         connection = QueriesSQLServer.create_connection(server, database, username, password)
         if not connection:
-            print("Error al conectar con la base de datos")
+            logging.error("Error al conectar con la base de datos")
             return
     
         select_usuarios_query = "SELECT DISTINCT username FROM ventas"
@@ -723,9 +732,9 @@ class VistaVentas(Screen):
     
         # Verificar que se obtuvieron datos
         if usuarios_sql:
-            print(f"Usuarios obtenidos de la base de datos: {usuarios_sql}")
+            logging.info(f"Usuarios obtenidos de la base de datos: {usuarios_sql}")
         else:
-            print("No se encontraron usuarios en la tabla de ventas.")
+            logging.error("No se encontraron usuarios en la tabla de ventas.")
     
         if hasattr(self.popup, 'ids') and 'usuario_spinner' in self.popup.ids:
             self.popup.ids.usuario_spinner.values = []  
@@ -737,15 +746,15 @@ class VistaVentas(Screen):
     
             # Actualizar el spinner con los usuarios
             self.popup.ids.usuario_spinner.values = self.usuarios_cargados
-            print(f"Usuarios cargados en el spinner: {self.popup.ids.usuario_spinner.values}")
+            logging.info(f"Usuarios cargados en el spinner: {self.popup.ids.usuario_spinner.values}")
         else:
-            print("No se encontró el spinner de usuario en el popup.")
+            logging.error("No se encontró el spinner de usuario en el popup.")
 
     
 
     def cargar_ventas(self):
         username = self.popup.ids.usuario_input.text.strip()  # Obtener el nombre ingresado
-        print(f"Usuario ingresado: {username}")
+        logging.info(f"Usuario ingresado: {username}")
 
         fecha = self.popup.ids.single_date_input.text
         fecha_inicio = self.popup.ids.initial_date_input.text
@@ -763,7 +772,7 @@ class VistaVentas(Screen):
     def cargar_venta(self, choice='Default', username='', fecha='', fecha_inicio='', fecha_fin=''):
         connection = QueriesSQLServer.create_connection(server, database, "Elgomez05", password)
         if not connection:
-            print("Error al conectar con la base de datos")
+            logging.info("Error al conectar con la base de datos")
             return
 
         # Cerrar popup anterior si existe al cargar nuevos datos
@@ -802,9 +811,9 @@ class VistaVentas(Screen):
             else:
                 raise ValueError("Fechas no válidas")
 
-            print(f"Ejecutando consulta con fechas: {fecha_inicio} - {fecha_fin} y usuario: {username}")
+            logging.info(f"Ejecutando consulta con fechas: {fecha_inicio} - {fecha_fin} y usuario: {username}")
         except ValueError as e:
-            print(f"Error en la conversión de fechas: {e}")
+            logging.error(f"Error en la conversión de fechas: {e}")
             return
 
         query_params = [fecha_inicio, fecha_fin]
@@ -817,10 +826,10 @@ class VistaVentas(Screen):
         ventas_sql = QueriesSQLServer.execute_read_query(connection, select_ventas_query, tuple(query_params))
 
         if ventas_sql:
-            print(f"Ventas obtenidas: {ventas_sql}")
+            logging.info(f"Ventas obtenidas: {ventas_sql}")
             for venta in ventas_sql:
                 final_sum += venta[1]
-                print(f"Procesando venta: {venta}")
+                logging.info(f"Procesando venta: {venta}")
 
                 selec_productos_query = "SELECT * FROM ventas_detalle WHERE id_venta=?"
                 ventas_detalle_sql = QueriesSQLServer.execute_read_query(connection, selec_productos_query, (venta[0],))
@@ -839,7 +848,7 @@ class VistaVentas(Screen):
             self.ids.ventas_rv.agregar_datos(_ventas)
             self.productos_actuales = _total_productos
         else:
-            print("No se encontraron ventas para el rango de fechas seleccionado.")
+            logging.info("No se encontraron ventas para el rango de fechas seleccionado.")
 
         self.ids.final_sum.text = '$ ' + str("{:.2f}".format(final_sum))
         self.ids.initial_date.text = ''
@@ -858,11 +867,11 @@ class VistaSettings(Screen):
         # Vista de configuraciones - puede expandirse según necesidades
 
     def configurar_impresora(self):
-        print("Configurar Impresora Epson")
+        logging.info("Configurar Impresora Epson")
         # Aquí se puede implementar la lógica de configuración de impresora
 
     def configurar_scanner(self):
-        print("Configurar Pistola Scanner")
+        logging.info("Configurar Pistola Scanner")
         # Aquí se puede implementar la lógica de configuración de scanner
 
 class CustomDropDown(DropDown):
