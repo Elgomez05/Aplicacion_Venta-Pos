@@ -178,7 +178,7 @@
             Button:
                 id: boton_pagar
                 disabled: True
-                text: 'Terminar pago'
+                text: 'Confirmar'
                 on_release: root.finalizar_cobro()
             
 
@@ -286,17 +286,19 @@
                 rows: 2
                 cols: 2
                 LabelOscuro: 
-                    text: 'Buscar por Código'
+                    text: 'Buscar por Código/Scanner'
                 LabelOscuro:
                     text: 'Buscar por Normbre'
                 TextInput:
                     id: buscar_codigo
                     multiline: False
                     on_text_validate: root.agregar_producto_codigo(self.text)
+                    input_filter: 'int'
                 TextInput:
                     id:buscar_nombre
                     multiline: False
                     on_text_validate: root.agregar_producto_nombre(self.text)
+                    on_text: root.filtrar_nombre(self, self.text)
                     
             BoxLayout:
                 size_hint_y: .8
@@ -448,17 +450,18 @@
 
 <TipoFacturaPopup>:
     size_hint: .4, .3
-    title: 'Imprimir factura'
+    title: 'Confirmacion de Venta'
+    title_align: 'center'
     BoxLayout:
         orientation: 'vertical'
         BoxLayout:
             size_hint_y: .6
             Button:
-                text: 'Factura Electrónica'
-                on_release: root.imprimir_electronica()
-            Button:
-                text: 'Factura de Venta'
+                text: 'Imprimir Factura'
                 on_release: root.imprimir_venta()
+            Button:
+                text: 'finalizar pago'
+                on_release: root.finalizar_pago_sin_factura()
         BoxLayout:
             size_hint_y: .4
             Button:
@@ -478,4 +481,4 @@
             #size_hint_y: .08
             #Button:
                 #text: 'Cerrar y volver'
-                #on_release: root.dismiss()
+                #on_release: root.dismiss()#####13

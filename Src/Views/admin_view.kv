@@ -37,20 +37,28 @@
     	color: (0,0,0,1)
     Label:
     	id: _codigo
-    	size_hint_x: .35
+    	size_hint_x: .20
     	color: (0,0,0,1)
     Label:
     	id: _articulo
-    	size_hint_x: .35
+    	size_hint_x: .20
     	color: (0,0,0,1)
     Label:
     	id: _cantidad
     	size_hint_x: .125
     	color: (0,0,0,1)
+	Label:
+        id: _precio_compra  
+        size_hint_x: .125
+        color: (0,0,0,1)
     Label:
     	id: _precio
     	size_hint_x: .125
     	color: (0,0,0,1)
+	Label:
+        id: _catalogo  
+        size_hint_x: .125
+        color: (0,0,0,1)
 
 <SelectableUsuarioLabel>:
     # Draw a background to indicate selection
@@ -179,21 +187,29 @@
 				hint_text: 'Cantidad'
 				write_tab: False
 			TextInput:
+				id: precio_compra
+				multiline: False
+				hint_text: 'Precio Compra'
+				write_tab: False
+			TextInput:
 				id: producto_precio
 				multiline: False
-				hint_text: 'Precio'
+				hint_text: 'Precio Vender'
 				write_tab: False
+			Spinner:
+				id: spinner_catalogo
+				text: "Catalogo"
+				values: ["ASEO", "VERDURAS", "ABARROTES", "BEBIDAS"]
+
+
 		BoxLayout:
 			size_hint_y: .1
 			Button:
-				text: 'Aceptar'
-				on_release: root.verificar(producto_codigo.text, producto_nombre.text, producto_cantidad.text, producto_precio.text)
-			Button:
 				text: 'Salir sin hacer cambios'
 				on_release: root.dismiss()
-
-
-
+			Button:
+				text: 'Aceptar'
+				on_release: root.verificar(producto_codigo.text, producto_nombre.text, producto_cantidad.text, producto_precio.text, spinner_catalogo.text, precio_compra.text)
 
 <NotificacionPopup>:
     size_hint: 0.6, 0.4
@@ -211,13 +227,29 @@
             on_release: root.dismiss()
 
 
-
 <VistaProductos>:
 	name: 'Productos'
 	BoxLayout:
+		orientation: 'horizontal'
 		BoxLayout:
 			padding: .5
 			orientation: 'vertical'
+			# === BUSCADOR SOLO PARA PRODUCTOS ===
+			BoxLayout:
+				size_hint_y: .06
+				spacing: .3
+				padding: .3
+				Label:
+					text: "🔍"
+					size_hint_x: .05
+					color: 0, 0, 0, 1
+				TextInput:
+					id: buscador_productos
+					hint_text: 'Buscar producto (código o nombre)'
+					multiline: False
+					write_tab: False
+					on_text: root.filtrar_productos(self.text)
+
 			BoxLayout:
 				size_hint_y: .05
 				spacing: .5
@@ -226,16 +258,30 @@
 					size_hint_x: .05
 				LabelOscuro:
 					text: 'Código  de Artículo'
-					size_hint_x: .35
+					size_hint_x: .20
 				LabelOscuro:
 					text: 'Artículo'
-					size_hint_x: .35
+					size_hint_x: .20
 				LabelOscuro:
 					text: 'Cantidad'
 					size_hint_x: .125
 				LabelOscuro:
+					text: 'Precio Compra'
+					size_hint_x: .125
+				LabelOscuro:
 					text: 'Precio  C/U'
 					size_hint_x: .125
+				Spinner:
+					id: spinner_catalogo_filtro
+					text: 'Catalogo'
+					values: ['TODOS']
+					size_hint_x: .125
+					on_text: root.filtrar_por_catalogo(self.text)
+
+				#LabelOscuro:
+					#text: 'Catalogo'
+					#size_hint_x: .125
+
 
 			AdminRV:
 				id: rv_productos
@@ -304,12 +350,11 @@
 		BoxLayout:
 			size_hint_y: .1
 			Button:
-				text: 'Aceptar'
-				on_release: root.verificar(usuario_username.text, usuario_nombre.text, usuario_password.text, admin_tipo.state, empleado_tipo.state)
-			Button:
 				text: 'Salir sin hacer cambios'
 				on_release: root.dismiss()
-
+			Button:
+				text: 'Aceptar'
+				on_release: root.verificar(usuario_username.text, usuario_nombre.text, usuario_password.text, admin_tipo.state, empleado_tipo.state)
 
 <VistaUsuarios>:
 	name: 'Usuarios'
@@ -556,15 +601,18 @@
 			orientation: 'vertical'
 			spacing: .5
 			BotonOscuro:
-				text: 'Impresora Epson'
+				text: 'Prueba Impresora Epson'
 				on_release: root.configurar_impresora()
 			BotonOscuro:
-				text: 'Pistola Scanner'
+				text: 'Prueba Pistola Scanner'
 				on_release: root.configurar_scanner()
-	
-
-
-
+			BotonOscuro:
+				text: "Abrir Turno"
+				on_press: root.abrir_turno()
+			BotonOscuro:
+				text: "Cerrar Turno"
+				on_press: root.cerrar_turno()
+			
 <CustomDropDown>:
 	canvas.before:
 		Color:
@@ -653,4 +701,4 @@
 			id:	vista_configuraciones
 
     BoxLayout:
-    	size_hint_y:.05
+    	size_hint_y:.05 ####v14---15

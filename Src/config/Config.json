@@ -1,0 +1,36 @@
+{
+    "database": {
+      "engine": "sqlserver",
+      "server": "DESKTOP-QGCQ59D\\SQLEXPRESS",
+      "database": "PuntoventaDB",
+      "username": "Elgomez05",
+      "password": "123456"
+    },
+  
+    "printer": {
+      "use_default": true,
+      "name": "",
+      "paper_width": 58,
+      "cut_paper": true,
+      "open_cash_drawer": true
+    },
+  
+    "scanner": {
+      "enabled": true,
+      "mode": "keyboard"
+    },
+  
+    "invoicing": {
+      "data_path": "C:/ProgramData/PuntoVenta",
+      "save_billing": "C:/ProgramData/PuntoVenta/invoices",
+      "currency": "COP",
+      "currency_symbol": "$",
+      "adjustment": 50
+    },
+  
+    "app": {
+      "environment": "production",
+      "debug": true
+    }
+  }
+  

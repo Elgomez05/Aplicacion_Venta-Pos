@@ -23,14 +23,39 @@ from kivy.properties import ObjectProperty
 
 from Src.Views.sqlqueries import QueriesSQLServer
 import logging
+from Src.Config.config_loader import load_config, config
+from Src.Views.Settings import Herramientas, Config
 
 os.environ["KIVY_NO_ARGS"] = "1"
+
+def format_currency(value):
+    """Formatea valores monetarios para COP (Colombia)"""
+    try:
+        if isinstance(value, str):
+            value = float(value)
+        
+        # (sin decimales para COP)
+        value_int = int(round(value))
+        value_str = str(value_int)
+        parts = []
+        while value_str:
+            parts.append(value_str[-3:])
+            value_str = value_str[:-3]
+    
+        # Unir con puntos y revertir el orden
+        formatted = ".".join(reversed(parts))
+        
+        return f"${formatted}"
+    except Exception as e:
+        logging.error(f"Error formateando valor {value}: {e}")
+        return "$0"
+
 log = logging.getLogger(__name__)
 
-server = 'DESKTOP-QGCQ59D\\SQLEXPRESS'
-database = 'PuntoventaDB'
-username = 'Elgomez05'
-password = '123456'
+server = config.get("database", "server")
+database = config.get("database", "database")
+username = config.get("database", "username")
+password = config.get("database", "password")
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +80,9 @@ class SelectableProductoLabel(RecycleDataViewBehavior, BoxLayout):
         self.ids['_codigo'].text = data['codigo']
         self.ids['_articulo'].text = data['nombre'].capitalize()
         self.ids['_cantidad'].text = str(data['cantidad'])
-        self.ids['_precio'].text = str("{:.2f}".format(data['precio']))
+        self.ids['_precio_compra'].text = format_currency(data.get('precio_compra', 0)) 
+        self.ids['_precio'].text = format_currency(data['precio'])
+        self.ids['_catalogo'].text = data.get('catalogo', '')  
         return super(SelectableProductoLabel, self).refresh_view_attrs(rv, index, data)
 
     def on_touch_down(self, touch):
@@ -108,8 +135,8 @@ class ItemVentaLabel(RecycleDataViewBehavior, BoxLayout):
 		self.ids['_codigo'].text = data['codigo']
 		self.ids['_articulo'].text = data['producto'].capitalize()
 		self.ids['_cantidad'].text = str(data['cantidad'])
-		self.ids['_precio_por_articulo'].text = str("{:.2f}".format(data['precio']))
-		self.ids['_total'].text= str("{:.2f}".format(data['total']))
+		self.ids['_precio_por_articulo'].text = format_currency(data['precio'])
+		self.ids['_total'].text= format_currency(data['total'])
 		return super(ItemVentaLabel, self).refresh_view_attrs(
             rv, index, data)
 
@@ -125,7 +152,7 @@ class SelectableVentaLabel(RecycleDataViewBehavior, BoxLayout):
 		self.ids['_hashtag'].text = str(1+index)
 		self.ids['_username'].text = data['username']
 		self.ids['_cantidad'].text = str(data['productos'])
-		self.ids['_total'].text = '$ '+str("{:.2f}".format(data['total']))
+		self.ids['_total'].text= format_currency(data['total'])
 		self.ids['_time'].text = str(data['fecha'].strftime("%H:%M:%S"))
 		self.ids['_date'].text = str(data['fecha'].strftime("%d/%m/%Y"))
 		return super(SelectableVentaLabel, self).refresh_view_attrs(
@@ -192,10 +219,12 @@ class ProductoPopup(Popup):
             self.ids.producto_nombre.text=producto['nombre']
             self.ids.producto_cantidad.text=str(producto['cantidad'])
             self.ids.producto_precio.text=str(producto['precio'])
+            self.ids.spinner_catalogo.text = producto.get('catalogo', '')
+            self.ids.precio_compra.text = str(producto.get('precio_compra', 0))
             
         self.open()
     
-    def verificar(self, producto_codigo, producto_nombre, producto_cantidad, producto_precio):
+    def verificar(self, producto_codigo, producto_nombre, producto_cantidad, producto_precio, catalogo, precio_compra ):
         alert1='Falta: '
         alert2=''
         validado={}
@@ -237,8 +266,21 @@ class ProductoPopup(Popup):
             except:
                 alert2+='precio no valido. '
                 validado['precio']=False
-                
+
+        validado['catalogo'] = self.ids.spinner_catalogo.text if hasattr(self.ids, 'spinner_catalogo') else 'GENERAL'
         
+        precio_compra_val = 0.0
+        if hasattr(self.ids, 'precio_compra') and self.ids.precio_compra.text:
+            try:
+                precio_compra_val = float(self.ids.precio_compra.text)
+            except:
+                alert2+='precio compra no valido. '
+                validado['precio_compra'] = False
+        else:
+            precio_compra_val = 0.0
+        
+        validado['precio_compra'] = precio_compra_val
+
         if any(value is False for value in validado.values()):
             self.ids.no_valido_notif.text = alert1 + alert2
         else:
@@ -254,6 +296,7 @@ class VistaProductos(Screen):
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
         Clock.schedule_once(self.cargar_productos, 1)
+        Clock.schedule_once(self.cargar_catalogos, 2) 
         
     def mostrar_notificacion_popup(self, mensaje):
         popup = Popup(
@@ -266,19 +309,69 @@ class VistaProductos(Screen):
         # Cerrar automáticamente después de 2 segundos
         Clock.schedule_once(lambda dt: popup.dismiss(), 2)
 
-    def cargar_productos(self, *args):
+    def cargar_catalogos(self, *args):
+        """Carga los catálogos únicos de la base de datos"""
+        connection = QueriesSQLServer.create_connection()
+        
+        # Consulta para obtener catálogos únicos
+        catalogos_query = "SELECT DISTINCT catalogo FROM productos WHERE ISNULL(activo, 1) = 1 AND catalogo IS NOT NULL AND catalogo != ''"
+        catalogos_sql = QueriesSQLServer.execute_read_query(connection, catalogos_query)
+        
+        catalogos_list = ["TODOS"]  # Opción por defecto
+        
+        if catalogos_sql:
+            for catalogo in catalogos_sql:
+                if catalogo[0]:  # Solo agregar si no es None o vacío
+                    catalogos_list.append(catalogo[0])
+        
+        # Actualizar el spinner con los catálogos
+        if hasattr(self.ids, 'spinner_catalogo_filtro'):
+            self.ids.spinner_catalogo_filtro.values = catalogos_list
+            self.ids.spinner_catalogo_filtro.text = "TODOS"
+
+    def cargar_productos(self, *args, catalogo=None):
         _productos = []
-        connection = QueriesSQLServer.create_connection(server, database, username, password)
-        logging.info(f"Conexion exitosa. {database}")
-        inventario_sql = QueriesSQLServer.execute_read_query(connection, "SELECT * from productos")
+        connection = QueriesSQLServer.create_connection()
+        if catalogo and catalogo != "TODOS":
+            # Filtrar por catálogo específico
+            inventario_sql = QueriesSQLServer.execute_read_query(
+                connection, 
+                "SELECT * FROM productos WHERE ISNULL(activo, 1) = 1 AND catalogo = ?",
+                (catalogo,)
+            )
+        else:
+            inventario_sql = QueriesSQLServer.execute_read_query(connection, "SELECT * FROM productos WHERE ISNULL(activo, 1) = 1")
+
         if inventario_sql:
             for producto in inventario_sql:
-                _productos.append({'codigo': producto[0], 'nombre': producto[1], 'precio': producto[2], 'cantidad': producto[3]})
+                _productos.append({'codigo': producto[0], 'nombre': producto[1], 'precio': producto[2], 'cantidad': producto[3], 'catalogo': producto[4], 'precio_compra': producto[5]})
+
         self.ids.rv_productos.agregar_datos(_productos)
+        self._productos_originales = _productos.copy()
+
+    def filtrar_productos(self, texto):
+        texto = texto.strip().lower()
+
+        if not texto:
+            self.ids.rv_productos.agregar_datos(self._productos_originales)
+            return
+
+        filtrados = [
+            p for p in self._productos_originales
+            if texto in p['nombre'].lower() or texto in str(p['codigo'])
+        ]
+
+        self.ids.rv_productos.agregar_datos(filtrados)
+
+        
+    def filtrar_por_catalogo(self, catalogo):
+        """Filtra los productos por el catálogo seleccionado"""
+        logging.info(f"Filtrando por catálogo: {catalogo}")
+        self.cargar_productos(catalogo=catalogo)
 
     def agregar_producto(self, agregar=False, validado=None):
         if agregar:
-            connection = QueriesSQLServer.create_connection(server, database, username, password)
+            connection = QueriesSQLServer.create_connection()
 
             # Verificar si el producto ya existe
             cursor = connection.cursor()
@@ -292,15 +385,23 @@ class VistaProductos(Screen):
                 popup.open()
             else:
                 # Si no existe, agregar el producto
-                producto_tuple = (validado['codigo'], validado['nombre'], validado['precio'], validado['cantidad'])
+                producto_tuple = (validado['codigo'], validado['nombre'], validado['precio'], validado['cantidad'], validado.get('catalogo', 'GENERAL'), validado.get('precio_compra', 0.0))
                 crear_producto = """
                 INSERT INTO
-                    productos (codigo, nombre, precio, cantidad)
+                    productos (codigo, nombre, precio, cantidad, catalogo, precio_compra)
                 VALUES
-                    (?, ?, ?, ?);
+                    (?, ?, ?, ?, ?, ?);
                 """
                 QueriesSQLServer.execute_query(connection, crear_producto, producto_tuple)
-                logging.info(f"Producto agregado correctamente.:, {producto_tuple}")
+                producto_formateado = (
+                    producto_tuple[0], 
+                    producto_tuple[1], 
+                    format_currency(producto_tuple[2]),  # Precio formateado
+                    producto_tuple[3], 
+                    producto_tuple[4], 
+                    format_currency(producto_tuple[5])   # Precio compra formateado
+                )
+                logging.info(f"Producto agregado correctamente.: {producto_formateado}")
                 self.ids.rv_productos.data.append(validado)
                 self.ids.rv_productos.refresh_from_data()
                 
@@ -313,15 +414,15 @@ class VistaProductos(Screen):
     def modificar_producto(self, modificar=False, validado=None):
         indice=self.ids.rv_productos.dato_seleccionado()
         if modificar:
-            connection = QueriesSQLServer.create_connection(server, database, username, password)
-            producto_tuple = (validado['nombre'], validado['precio'], validado['cantidad'], validado['codigo'])
+            connection = QueriesSQLServer.create_connection()
+            producto_tuple = (validado['nombre'], validado['precio'], validado['cantidad'], validado.get('catalogo', 'GENERAL'), validado.get('precio_compra', 0.0), validado['codigo'])
             actualizar_producto = """
             UPDATE
                 productos 
             SET
-                nombre=?, precio=?, cantidad=?
+                nombre = ?, precio = ?, cantidad = ?,  catalogo = ?, precio_compra = ?
             WHERE
-                codigo=?;
+                codigo = ?;
                 
             """
             QueriesSQLServer.execute_query(connection, actualizar_producto, producto_tuple)
@@ -329,8 +430,10 @@ class VistaProductos(Screen):
             self.ids.rv_productos.data[indice]['nombre']=validado['nombre']
             self.ids.rv_productos.data[indice]['cantidad']=validado['cantidad']
             self.ids.rv_productos.data[indice]['precio']=validado['precio']
+            self.ids.rv_productos.data[indice]['catalogo']=validado.get('catalogo', '')
+            self.ids.rv_productos.data[indice]['precio_compra']=validado.get('precio_compra', 0.0)
             self.ids.rv_productos.refresh_from_data()
-            
+
             self.mostrar_notificacion_popup(f"Producto '{validado['nombre']}' modificado correctamente.")
         else:
             if indice>=0:
@@ -344,14 +447,36 @@ class VistaProductos(Screen):
             indice = rv.dato_seleccionado()
             if indice >= 0:
                 producto_tuple = (rv.data[indice]['codigo'],)
-                connection = QueriesSQLServer.create_connection(server, database, username, password)
-                borrar_producto = """ DELETE from productos WHERE codigo = ? """
-                QueriesSQLServer.execute_query(connection, borrar_producto, producto_tuple)
-                logging.info(f"Producto eliminado correctamente.:, {producto_tuple}" )
+                connection = QueriesSQLServer.create_connection()
+                desactivar_producto = """
+                    UPDATE productos
+                    SET activo = 0
+                    WHERE codigo = ?
+                    """
+                try:
+                    QueriesSQLServer.execute_query(connection, desactivar_producto, producto_tuple)
+                except Exception as e:
+                    # Si está relacionado con FK
+                    if "REFERENCE constraint" in str(e) or "547" in str(e):
+                        self.mostrar_notificacion_popup(
+                            "Producto desactivado correctamente.\n"
+                            "Tiene ventas asociadas.",
+                        )
+                        logging.warning(
+                            f"No se puede eliminar producto {producto_tuple[0]}: tiene ventas" ######
+                        )
+                        return
+                    else:
+                        raise
+
+                # SOLO si SQL sí borró
+                logging.info(f"Producto eliminado correctamente.: {producto_tuple}")
                 rv.data.pop(indice)
                 rv.refresh_from_data()
-                self.mostrar_notificacion_popup(f"Producto '{producto_tuple[0]}' eliminado correctamente.")
-                
+                self.mostrar_notificacion_popup(
+                    f"Producto '{producto_tuple[0]}' eliminado correctamente."
+        )
+         
                
     def actualizar_productos(self, productos_actualizados):
         for producto_nuevo in productos_actualizados:
@@ -360,7 +485,14 @@ class VistaProductos(Screen):
                     productos_antes['cantidad']=producto_nuevo['cantidad']
                     break
         self.ids.rv_productos.refresh_from_data()
-        
+
+    def _tecla_presionada_admin(self, window, key, scancode, codepoint, modifiers):
+        """Maneja scanner en ventana de admin"""
+        if codepoint and codepoint.isalnum():
+            # Aquí puedes implementar lógica similar para buscar productos en admin
+            # Por ejemplo, seleccionar automáticamente un producto por código
+            pass
+
             
 class UsuarioPopup(Popup):
     def __init__(self, agregar_callback, **kwargs):
@@ -440,14 +572,12 @@ class VistaUsuarios(Screen):
             auto_dismiss=True
         )
         popup.open()
-        # Cerrar automáticamente después de 2 segundos
         Clock.schedule_once(lambda dt: popup.dismiss(), 2)
         
-
     def cargar_usuarios(self, *args):
         _usuarios = []
-        connection = QueriesSQLServer.create_connection(server, database, username, password)
-        usuarios_sql = QueriesSQLServer.execute_read_query(connection, "SELECT * from usuarios")
+        connection = QueriesSQLServer.create_connection()
+        usuarios_sql = QueriesSQLServer.execute_read_query(connection, "SELECT * from usuarios WHERE ISNULL(activo, 1) = 1")
         if usuarios_sql:
             for usuario in usuarios_sql:
                 _usuarios.append({'nombre': usuario[1], 'username': usuario[0], 'password': usuario[2], 'tipo': usuario[3]})
@@ -456,7 +586,7 @@ class VistaUsuarios(Screen):
     
     def agregar_usuario(self, agregar=False, validado=None):
         if agregar:
-            connection = QueriesSQLServer.create_connection(server, database, username, password)
+            connection = QueriesSQLServer.create_connection()
             # Verificar si el producto ya existe
             cursor = connection.cursor()
             verificar_usuario = "SELECT COUNT(*) FROM usuarios WHERE username = ?;"
@@ -488,7 +618,7 @@ class VistaUsuarios(Screen):
     def modificar_usuario(self, modificar=False, validado=None):
         indice=self.ids.rv_usuarios.dato_seleccionado()
         if modificar:
-            connection = QueriesSQLServer.create_connection(server, database, username, password)
+            connection = QueriesSQLServer.create_connection()
             usuario_tuple = (validado['nombre'], validado['password'], validado['tipo'], validado['username'])
             actualizar_usuario = """
             UPDATE
@@ -517,17 +647,39 @@ class VistaUsuarios(Screen):
             indice = rv.dato_seleccionado()
             if indice >= 0:
                 usuario_tuple = (rv.data[indice]['username'],)
-                connection = QueriesSQLServer.create_connection(server, database, username, password)
-                borrar_usuario = """ DELETE from usuarios WHERE username = ? """
-                QueriesSQLServer.execute_query(connection, borrar_usuario, usuario_tuple)
-                logging.info(f"Usuario eliminado correctamente.: {usuario_tuple}")
-                rv.data.pop(indice)
-                rv.refresh_from_data()
-                self.mostrar_notificacion_popup(f"Usuario '{usuario_tuple[0]}' eliminado correctamente.")
+                connection = QueriesSQLServer.create_connection()
+                # borrar_usuario = """ DELETE from usuarios WHERE username = ? """
+                # Marcar como inactivo en lugar de eliminar
+                desactivar_usuario = """
+                    UPDATE usuarios
+                    SET activo = 0
+                    WHERE username = ?
+                    """
+
+                try:
+                    QueriesSQLServer.execute_query(connection, desactivar_usuario, usuario_tuple)
+                    logging.info(f"Usuario desactivado correctamente: {usuario_tuple}")
+                    rv.data.pop(indice)
+                    rv.refresh_from_data()
+                    self.mostrar_notificacion_popup(
+                        f"Usuario '{usuario_tuple[0]}' eliminado correctamente.."
+                    )
+                    
+                except Exception as e:
+                    logging.error(f"Error al desactivar usuario: {e}")
+                    self.mostrar_notificacion_popup(
+                        f"Error al eliminar usuario. '{usuario_tuple[0]}'"
+                    )
+                    
+                # QueriesSQLServer.execute_query(connection, desactivar_usuario, usuario_tuple)
+                # logging.info(f"Usuario eliminado correctamente.: {usuario_tuple}")
+                # rv.data.pop(indice)
+                # rv.refresh_from_data()
+                # self.mostrar_notificacion_popup(f"Usuario '{usuario_tuple[0]}' eliminado correctamente.")
 
 
 class InfoVentaPopup(Popup):
-	connection = QueriesSQLServer.create_connection(server, database, username, password)
+	connection = QueriesSQLServer.create_connection()
 	select_item_query=" SELECT nombre FROM productos WHERE codigo = ?  "
 	def __init__(self, venta, **kwargs):
 		super(InfoVentaPopup, self).__init__(**kwargs)	
@@ -542,7 +694,7 @@ class InfoVentaPopup(Popup):
 			total_items+=articulo['cantidad']
 			total_dinero += Decimal(articulo['total'])
 		self.ids.total_items.text=str(total_items)
-		self.ids.total_dinero.text="$ "+str("{:.2f}".format(total_dinero))
+		self.ids.total_dinero.text="$ "+format_currency(total_dinero)
 		self.ids.info_rv.agregar_datos(self.venta)
 
 
@@ -565,7 +717,7 @@ class VistaVentas(Screen):
         super().__init__(**kwargs)
 
     def crear_pdf(self):
-        connection = QueriesSQLServer.create_connection(server, database, username, password)
+        connection = QueriesSQLServer.create_connection()
         select_item_query = "SELECT nombre FROM productos WHERE codigo=?"
 
         select_username_query = "SELECT TOP 1 username FROM usuarios WHERE tipo = 'admin' ORDER BY nombre DESC"
@@ -598,26 +750,28 @@ class VistaVentas(Screen):
                         try:
                             precio = float(item[2])  # Convertir precio a float
                             cantidad = int(item[4])  # Convertir cantidad a int
-                            total += precio * cantidad
+                            item_total = precio * cantidad
+                            total += item_total
                         except (ValueError, TypeError) as e:
                             logging.error(f"Error convirtiendo datos: {e}, item: {item}")
                             continue
 
-                    item_found = next((producto for producto in productos_pdf if producto["codigo"] == item[3]), None)
-                    # total += item[2] * item[4]
+                        item_found = next((producto for producto in productos_pdf if producto["codigo"] == item[3]), None)
+                        # total += item[2] * item[4]
 
-                    if item_found:
-                        item_found['cantidad'] += item[4]
-                        item_found['precio_total'] = item_found['precio'] * item_found['cantidad']
-                    else:
-                        nombre = QueriesSQLServer.execute_read_query(connection, select_item_query, (item[3],))[0][0]
-                        productos_pdf.append({
-                            'nombre': nombre,
-                            'codigo': item[3],
-                            'cantidad': item[4],
-                            'precio': item[2],
-                            'precio_total': item[2] * item[4]
-                        })
+                        if item_found:
+                            item_found['cantidad'] += item[4]
+                            item_found['precio_total'] += item_total #item_found['precio'] * item_found['cantidad']
+                        else:
+                            nombre = QueriesSQLServer.execute_read_query(connection, select_item_query, (item[3],))[0][0]
+                            productos_pdf.append({
+                                'nombre': nombre,
+                                'codigo': item[3],
+                                'cantidad': item[4],
+                                'precio': precio,
+                                'precio_total': item_total
+                            }
+                        )
 
             # Crear el PDF
             c = canvas.Canvas(pdf_nombre, pagesize=letter)
@@ -645,8 +799,10 @@ class VistaVentas(Screen):
                 c.drawString(50, y_position, f"{producto['nombre'][:20]:<20}")  
                 c.drawString(220, y_position, f"{producto['codigo']:<10}")
                 c.drawRightString(350, y_position, f"{producto['cantidad']:<5}") 
-                c.drawRightString(440, y_position, f"${producto['precio']:<7.2f}")
-                c.drawRightString(520, y_position, f"${producto['precio_total']:<7.2f}")
+                precio_formateado = format_currency(producto['precio'])  # Formatear precio con separador de miles (COP)
+                c.drawRightString(440, y_position, f"{precio_formateado:<7}")
+                total_formateado = format_currency(producto['precio_total'])  # Formatear precio con separador de miles (COP)
+                c.drawRightString(520, y_position, f"{total_formateado:<7}")
                 y_position -= 15
 
             # Total
@@ -654,7 +810,8 @@ class VistaVentas(Screen):
             c.drawString(50, y_position - 10, "-" * 150)
             y_position -= 30
             c.drawString(322, y_position, "Total :")
-            c.drawRightString(520, y_position, f"${total:.2f}")
+            total_final_formateado = format_currency(total)  # Formatear total final con separador de miles
+            c.drawRightString(520, y_position, f"{total_final_formateado}")
 
             c.save()
 
@@ -722,7 +879,7 @@ class VistaVentas(Screen):
         self.popup.ids.single_date_input.text = today.strftime('%d/%m/%y')
         
     def cargar_usuarios(self):
-        connection = QueriesSQLServer.create_connection(server, database, username, password)
+        connection = QueriesSQLServer.create_connection()
         if not connection:
             logging.error("Error al conectar con la base de datos")
             return
@@ -770,12 +927,8 @@ class VistaVentas(Screen):
         self.popup.dismiss()
 
     def cargar_venta(self, choice='Default', username='', fecha='', fecha_inicio='', fecha_fin=''):
-        connection = QueriesSQLServer.create_connection(server, database, "Elgomez05", password)
-        if not connection:
-            logging.info("Error al conectar con la base de datos")
-            return
-
-        # Cerrar popup anterior si existe al cargar nuevos datos
+        connection = QueriesSQLServer.create_connection()
+        
         if self.popup_actual is not None:
             try:
                 self.popup_actual.dismiss()
@@ -786,27 +939,30 @@ class VistaVentas(Screen):
         final_sum = 0
         _ventas = []
         _total_productos = []
-        # Limpiar datos anteriores
         self.ids.ventas_rv.limpiar_datos()
         self.productos_actuales = []  # Limpiar productos actuales antes de cargar nuevos
 
         try:
             if choice == 'Default':
                 fecha_inicio = datetime.today().date()
-                fecha_fin = fecha_inicio + timedelta(days=1)
+                fecha_fin = datetime.combine(fecha_inicio, datetime.max.time())
+                # fecha_fin = fecha_inicio + timedelta(days=1)
                 self.ids.date_id.text = fecha_inicio.strftime("%d-%m-%y")
             elif choice == 'Date' and fecha:
                 fecha = fecha.strip()
                 formato_fecha = '%d/%m/%Y' if len(fecha.split('/')[-1]) == 4 else '%d/%m/%y'
                 fecha_inicio = datetime.strptime(fecha, formato_fecha).date()
-                fecha_fin = fecha_inicio + timedelta(days=1)
+                fecha_fin = datetime.combine(fecha_inicio, datetime.max.time())
+                # fecha_fin = fecha_inicio + timedelta(days=1)
                 self.ids.date_id.text = fecha_inicio.strftime('%d-%m-%y')
             elif choice == 'Range' and fecha_inicio and fecha_fin:
                 fecha_inicio = fecha_inicio.strip()
                 fecha_fin = fecha_fin.strip()
                 formato_fecha = '%d/%m/%Y' if len(fecha_inicio.split('/')[-1]) == 4 else '%d/%m/%y'
                 fecha_inicio = datetime.strptime(fecha_inicio, formato_fecha).date()
-                fecha_fin = datetime.strptime(fecha_fin, formato_fecha).date() + timedelta(days=1)
+                fecha_fin_original = datetime.strptime(fecha_fin, formato_fecha).date()
+                fecha_fin = datetime.combine(fecha_fin_original, datetime.max.time())
+                # fecha_fin = datetime.strptime(fecha_fin, formato_fecha).date() + timedelta(days=1)
                 self.ids.date_id.text = fecha_inicio.strftime("%d-%m-%y") + " - " + fecha_fin.strftime("%d-%m-%y")
             else:
                 raise ValueError("Fechas no válidas")
@@ -818,12 +974,30 @@ class VistaVentas(Screen):
 
         query_params = [fecha_inicio, fecha_fin]
         if username and username != "Seleccionar Usuario":
-            select_ventas_query = "SELECT * FROM ventas WHERE fecha BETWEEN ? AND ? AND username = ?"
+            # select_ventas_query = "SELECT * FROM ventas WHERE fecha BETWEEN ? AND ? AND username = ?"
+            select_ventas_query = """
+                SELECT 
+                    id, total, fecha, username,
+                    id_factura, id_turno, id_dispositivo,
+                    prefijo_resolucion, num_resolucion, consecutivo,
+                    subtotal, impuestos, metodo_pago
+                FROM ventas 
+                WHERE fecha BETWEEN ? AND ? AND username = ?
+            """
             query_params.append(username)
         else:
-            select_ventas_query = "SELECT * FROM ventas WHERE fecha BETWEEN ? AND ?"
-
-        ventas_sql = QueriesSQLServer.execute_read_query(connection, select_ventas_query, tuple(query_params))
+            # select_ventas_query = "SELECT * FROM ventas WHERE fecha BETWEEN ? AND ?"
+            select_ventas_query = """
+                SELECT 
+                    id, total, fecha, username,
+                    id_factura, id_turno, id_dispositivo,
+                    prefijo_resolucion, num_resolucion, consecutivo,
+                    subtotal, impuestos, metodo_pago
+                FROM ventas 
+                WHERE fecha BETWEEN ? AND ?
+            """
+        ventas_sql = QueriesSQLServer.execute_read_query(connection, select_ventas_query, 
+                                        tuple(query_params))
 
         if ventas_sql:
             logging.info(f"Ventas obtenidas: {ventas_sql}")
@@ -850,29 +1024,54 @@ class VistaVentas(Screen):
         else:
             logging.info("No se encontraron ventas para el rango de fechas seleccionado.")
 
-        self.ids.final_sum.text = '$ ' + str("{:.2f}".format(final_sum))
+        self.ids.final_sum.text = '$ ' + format_currency(final_sum)
         self.ids.initial_date.text = ''
         self.ids.last_date.text = ''
         self.ids.single_date.text = ''
         self.ids.notificacion.text = 'Datos de Ventas'
         
-        #------
-
-    
-    
+        #------   
                   
 class VistaSettings(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.config = config
         # Vista de configuraciones - puede expandirse según necesidades
 
     def configurar_impresora(self):
-        logging.info("Configurar Impresora Epson")
-        # Aquí se puede implementar la lógica de configuración de impresora
+        PruebInpresion = Herramientas()
+        PruebInpresion._on_prueba_impresion(ventana=self)
 
     def configurar_scanner(self):
         logging.info("Configurar Pistola Scanner")
-        # Aquí se puede implementar la lógica de configuración de scanner
+        # La configuración del scanner ahora está en settings.json
+        scanner_config = config.get("scanner")
+        if scanner_config:
+            logging.info(f"Scanner config: enabled={scanner_config.get('enabled')}, mode={scanner_config.get('mode')}")
+
+        # Configuración cargada
+    def abrir_turno(self):
+        herramientas = Herramientas()
+        ok = herramientas.abrir_turno(user="POS")
+
+        if ok:
+            popup = Popup(
+                title="Notificación",
+                content=Label(text="Turno abierto correctamente"),
+                size_hint=(0.6, 0.3),
+                auto_dismiss=True
+            )
+            popup.open()
+            Clock.schedule_once(lambda dt: popup.dismiss(), 2)
+
+        self.config.set("turno", {"Status": "ABIERTO", "user": "POS", "info_only": True})
+
+    def cerrar_turno(self):
+        herramientas = Herramientas()
+        herramientas.cerrar_turno()
+
+        self.config.set("turno", {"Status": "CERRADO", "user": "POS", "info_only": True})
+        logging.info("Turno cerrado correctamente.")
 
 class CustomDropDown(DropDown):
     def __init__(self, cambiar_collback, **kwargs):
@@ -909,11 +1108,10 @@ class AdminWindow(BoxLayout):
          if hasattr(self.ids, 'vista_productos'):
             self.ids.vista_productos.actualizar_productos(productos)
 
-
 class AdminApp(App):
     def build(self):
         return AdminWindow()
 
 
 if __name__ == "__main__":
-    AdminApp().run()#######
+    AdminApp().run()#######v14-----16

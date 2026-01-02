@@ -7,6 +7,7 @@ import sys
 import logging
 from kivy.properties import StringProperty
 from cryptography.fernet import Fernet
+from Src.Config.config_loader import load_config, config, CURRENT_USER
 
 os.environ["KIVY_NO_ARGS"] = "1"
 
@@ -18,10 +19,10 @@ logging.info("Archivo KV cargado correctamente")
 
 from Src.Views.sqlqueries import QueriesSQLServer
 
-server = 'DESKTOP-QGCQ59D\SQLEXPRESS'
-database = 'PuntoventaDB'
-username = 'Elgomez05'
-password = '123456'
+server = config.get("database", "server")
+database = config.get("database", "database")
+username = config.get("database", "username")
+password = config.get("database", "password")
 
 def resource_path(relative_path):
     """Obtiene la ruta correcta para recursos en dev y en el ejecutable"""
@@ -152,6 +153,9 @@ class SigninWindow(BoxLayout):
                             break
                     if user_data:
                         if user_data['password'] == password_input:
+                            CURRENT_USER.clear()
+                            CURRENT_USER.update(user_data)
+
                             self.ids.username.text = ''
                             self.ids.password.text = ''
                             self.ids.signin_notificacion.text = ''
@@ -178,4 +182,4 @@ class SigninApp(App):
         return SigninWindow()
 
 if __name__ == "__main__":
-    SigninApp().run()##########v1
+    SigninApp().run()##########v4
