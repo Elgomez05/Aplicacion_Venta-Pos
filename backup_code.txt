@@ -1,0 +1,48 @@
+cual seria el parcheo minimo robusto, optimizado, profesional directo y simplificado conservando la estructura que ya uso.. clases, metodos, funciones entre otras .. o que me indiques la linea problematica
+
+============================================================================================================
+copilar app python - kivy
+
+pyinstaller --name PuntoVentasPos --noconsole --onefile --icon=Src/Asset/Img-venta-Pos.ico --add-data "Src;Src" --add-data "Src/Views/key.key;Src/Views" --add-data "Src/Views/*.kv;Src/Views" --add-data "Src/Asset;Src/Asset" --add-data "PuntoVenta.kv;." main.py
+
+=============================================================================================================
+
+====================================================================================
+	*** Autenticacion de administrador en el sistema de facturacion Pos ***
+ 				Usuario : admin - Elgomez05 - Yeferson05
+ 				contraseña : Yeferson#05314	
+
+		***	Autenticacion base de datos SQL Server 	***
+			usuario: Elgomez05
+			contraseña: 123456
+====================================================================================
+
+pendiente cambio de estado en popup de administrador 
+
+
+
+
+ultimo metodo funcional de service_invoicing.py es la linea donde quito doble inserta en la base de datos SE ELIMINA METODO O SE COMENTA
+invoice["Receipt"] = strInvoice
+            Invoice_bytes      = strInvoice.encode()
+            Invoice_Base64     = base64.b64encode(Invoice_bytes)
+            # invoice_decode     = base64.b64decode(Invoice_Base64)
+
+            try:
+                self.addInvoiceTurn(invoice)
+                
+                # ✅ PARCHEO MÍNIMO: Guardar en base de datos SQL
+                #try:
+                    #self._save_invoice_to_database(invoice)
+                #except Exception as db_error:
+                    #logging.error(f"Error guardando en base de datos: {db_error}")
+                    # No interrumpir el flujo, solo loguear el error
+                    
+            except Exception as e:
+                logging.error("Error al agregar la factura al turno")
+
+
+comando ejecutar copilar app Kivy-python proyecto actual :
+
+pyinstaller --name PuntoVentasPos --noconsole --onefile --icon=Src/Asset/Img-venta-Pos.ico --add-data "Src;Src" --add-data "Src/Views/key.key;Src/Views" --add-data "Src/Views/*.kv;Src/Views" 
+--add-data "Src/Asset;Src/Asset" --add-data "PuntoVenta.kv;." main.py
