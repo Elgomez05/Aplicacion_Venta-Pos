@@ -5,6 +5,8 @@ import win32ui
 import win32print
 
 from logging.handlers   import TimedRotatingFileHandler
+from Src.Config.config_loader import config
+
 
 from PIL import Image, ImageWin
 
@@ -20,12 +22,24 @@ class Printer():
     characters      = b"\x1B\x52\x0C" #conjunto de caracteres latino
 
     def __init__(self) -> None:
+        cfg = config.get("printer") or {}
+
+        self.use_default = cfg.get("use_default", True)
+        self.printer_name = cfg.get("name", "")
+        self.paper_width = cfg.get("paper_width", 58)
+        self.cut_paper = cfg.get("cut_paper", True)
+        self.open_cash_drawer = cfg.get("open_cash_drawer", False)
         pass
 
     def print(self, to_print: list, name = "Impresión_Python"):
         res = False
         try: 
-            self.impresora_p = win32print.GetDefaultPrinter()
+            if self.use_default:
+                self.impresora_p = win32print.GetDefaultPrinter()
+            else:
+                if not self.printer_name:
+                    raise Exception("Impresora no configurada")
+                self.impresora_p = self.printer_name
             self.impresora = win32print.OpenPrinter(self.impresora_p)
             self.printer_info = win32print.GetPrinter(self.impresora,2)
             
@@ -42,7 +56,7 @@ class Printer():
             if is_offline or is_working_offline:
                 logs.warning("Impresora desconectada")
                 win32print.ClosePrinter(self.impresora)
-                return True
+                raise Exception("Impresora desconectada\nVerifique la conexión fisica")
 
             win32print.StartDocPrinter(self.impresora, 1, (name, None, "RAW"))
             win32print.StartPagePrinter(self.impresora)
@@ -77,16 +91,22 @@ class Printer():
 
 
             win32print.WritePrinter(self.impresora, b"\n\n\n\n\n\n\n\n")
-            win32print.WritePrinter(self.impresora, b"\x1B\x69")
-            win32print.WritePrinter(self.impresora, bytes([27, 112, 48, 55, 121]))
+
+            if self.cut_paper:
+                win32print.WritePrinter(self.impresora, b"\x1B\x69")
+
+            if self.open_cash_drawer:
+                win32print.WritePrinter(self.impresora, bytes([27, 112, 48, 55, 121]))
+
             win32print.EndPagePrinter(self.impresora)
             win32print.EndDocPrinter(self.impresora)
             win32print.ClosePrinter(self.impresora)
             res = True
         except Exception as e:
             logs.error(f"Error: {e}")
-        finally:
-            return res
+            raise
+
+        return res
 
     def print_text(self, text_encode):
         win32print.WritePrinter(self.impresora, text_encode)

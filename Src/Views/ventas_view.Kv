@@ -178,7 +178,7 @@
             Button:
                 id: boton_pagar
                 disabled: True
-                text: 'Terminar pago'
+                text: 'Confirmar'
                 on_release: root.finalizar_cobro()
             
 
@@ -207,46 +207,66 @@
             pos: self.pos
     orientation: 'vertical'
     BoxLayout:
-        size_hint_y: .1 
-        spacing: .5 
+        size_hint_y: .1
+        spacing: .5
+
         Label:
             id: bienvenido_label
-            size_hint_x: .14
+            size_hint_x: .10
             text:'Bienvenido:'
             color: hex('3d3735')
+            halign: 'right'
+            valign: 'middle'
+            text_size: self.size
+
         Label:
             id: bienvenido_log
-            size_hint_x: .14
+            size_hint_x: .10
             color: hex('3d3735')
-            size_hint_x: .11
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+        Label:
+            id: encabezado_terminal
+            size_hint_x: .20
+            font_size: '17sp'
+            bold: True
+            color: hex('3d3735')
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+            padding_x: 10
+
         GridLayout:
-            size_hint_x: .25
+            size_hint_x: .30
             rows: 2
             cols: 2
             Label:
                 text: 'Fecha:'
                 color: hex('3d3735')
             Label:
-                id:    fecha
+                id: fecha
                 color: hex('3d3735')
             Label:
                 text: 'Hora:'
                 color: hex('3d3735')
             Label:
-                id:    hora
+                id: hora
                 color: hex('3d3735')
-        Label:
-            size_hint_x: .2
+
         BotonOscuro:
             id: admin_boton
             size_hint_x: .15
             text: 'Admin'
-            on_release: root.admin()   
+            on_release: root.admin()
+
         BotonOscuro:
             id: signout_boton
             size_hint_x: .15 
             text: 'Cerrar sesion'
-            on_release: root.signout() 
+            on_release: root.signout()
+ 
     BoxLayout:
         canvas.before:
             Color: 
@@ -266,17 +286,19 @@
                 rows: 2
                 cols: 2
                 LabelOscuro: 
-                    text: 'Buscar por Código'
+                    text: 'Buscar por Código/Scanner'
                 LabelOscuro:
                     text: 'Buscar por Normbre'
                 TextInput:
                     id: buscar_codigo
                     multiline: False
                     on_text_validate: root.agregar_producto_codigo(self.text)
+                    input_filter: 'int'
                 TextInput:
                     id:buscar_nombre
                     multiline: False
                     on_text_validate: root.agregar_producto_nombre(self.text)
+                    on_text: root.filtrar_nombre(self, self.text)
                     
             BoxLayout:
                 size_hint_y: .8
@@ -333,16 +355,49 @@
                 size_hint_y: .4
                 rows: 2
                 cols: 2
+                padding: [10, 5]  # Añade padding interno
+                
                 Label:
                     text: 'Sub-total'
+                    font_size: '23sp'
+                    bold: True
+                    color: (1, 1, 1, 1)
+                    halign: 'center'
+                    valign: 'middle'
+                    
                 Label:
                     id: sub_total
                     text: '0.00'
+                    font_size: '23sp'
+                    bold: True
+                    color: (1, 1, 1, 1)
+                    halign: 'center'
+                    valign: 'middle'
+                    # Ajusta automáticamente
+                    text_size: self.width - 10, None
+                    shorten: True
+                    padding_x: 10
+                    
                 Label:
                     text: 'Total'
+                    font_size: '30sp'
+                    bold: True
+                    color: (1, 1, 1, 1)
+                    halign: 'center'
+                    valign: 'middle'
+                    
                 Label:
                     id: total
                     text: '0.00'
+                    font_size: '30sp'
+                    bold: True
+                    color: (1, 1, 1, 1)
+                    halign: 'center'
+                    valign: 'middle'
+                    # CLAVE: Ajusta el texto al tamaño disponible
+                    text_size: self.width - 15, None
+                    shorten: True
+                    shorten_from: 'left'
             BoxLayout:
                 size_hint_y: .6
                 orientation: 'vertical'
@@ -365,11 +420,11 @@
                     id: nueva_compra
                     text: 'Nueva Compra'
                     on_release: root.nueva_compra() 
-                BotonOscuro:
-                    size_hint_y: .25
-                    id: nueva_venta
-                    text: 'Nueva Venta'
-                    on_release: root.nueva_venta_popup()
+                #BotonOscuro:
+                    #size_hint_y: .25
+                    #id: nueva_venta
+                    #text: 'Nueva Venta'
+                    #on_release: root.nueva_venta_popup()
 
     BoxLayout:
         size_hint_y: .03
@@ -428,34 +483,35 @@
 
 <TipoFacturaPopup>:
     size_hint: .4, .3
-    title: 'Imprimir factura'
+    title: 'Confirmacion de Venta'
+    title_align: 'center'
     BoxLayout:
         orientation: 'vertical'
         BoxLayout:
             size_hint_y: .6
             Button:
-                text: 'Factura Electrónica'
-                on_release: root.imprimir_electronica()
-            Button:
-                text: 'Factura de Venta'
+                text: 'Imprimir Factura'
                 on_release: root.imprimir_venta()
+            Button:
+                text: 'finalizar pago'
+                on_release: root.finalizar_pago_sin_factura()
         BoxLayout:
             size_hint_y: .4
             Button:
                 text: 'Cancelar'
                 on_release: root.dismiss()
 
-<NuevaVentaPopup>:
-    size_hint: 1, 1
-    title: 'Nueva venta'
-    auto_dismiss: True
-    BoxLayout:
-        orientation: 'vertical'
-        BoxLayout:
-            id: contenido
-            size_hint_y: .92
-        BoxLayout:
-            size_hint_y: .08
-            Button:
-                text: 'Cerrar y volver'
-                on_release: root.dismiss()
+#<NuevaVentaPopup>:
+    #size_hint: 1, 1
+    #title: 'Nueva venta'
+    #auto_dismiss: True
+    #BoxLayout:
+        #orientation: 'vertical'
+        #BoxLayout:
+            #id: contenido
+            #size_hint_y: .92
+        #BoxLayout:
+            #size_hint_y: .08
+            #Button:
+                #text: 'Cerrar y volver'
+                #on_release: root.dismiss()#####13

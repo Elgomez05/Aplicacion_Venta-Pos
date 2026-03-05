@@ -37,20 +37,28 @@
     	color: (0,0,0,1)
     Label:
     	id: _codigo
-    	size_hint_x: .35
+    	size_hint_x: .20
     	color: (0,0,0,1)
     Label:
     	id: _articulo
-    	size_hint_x: .35
+    	size_hint_x: .20
     	color: (0,0,0,1)
     Label:
     	id: _cantidad
     	size_hint_x: .125
     	color: (0,0,0,1)
+	Label:
+        id: _precio_compra  
+        size_hint_x: .125
+        color: (0,0,0,1)
     Label:
     	id: _precio
     	size_hint_x: .125
     	color: (0,0,0,1)
+	Label:
+        id: _catalogo  
+        size_hint_x: .125
+        color: (0,0,0,1)
 
 <SelectableUsuarioLabel>:
     # Draw a background to indicate selection
@@ -179,21 +187,28 @@
 				hint_text: 'Cantidad'
 				write_tab: False
 			TextInput:
+				id: precio_compra
+				multiline: False
+				hint_text: 'Precio Compra'
+				write_tab: False
+			TextInput:
 				id: producto_precio
 				multiline: False
-				hint_text: 'Precio'
+				hint_text: 'Precio Vender'
 				write_tab: False
+			Spinner:
+				id: spinner_catalogo
+				text: "Catalogo"
+				values: ["ASEO", "VERDURAS", "ABARROTES", "BEBIDAS", "CONDIMENTOS"]
+
 		BoxLayout:
 			size_hint_y: .1
 			Button:
-				text: 'Aceptar'
-				on_release: root.verificar(producto_codigo.text, producto_nombre.text, producto_cantidad.text, producto_precio.text)
-			Button:
 				text: 'Salir sin hacer cambios'
 				on_release: root.dismiss()
-
-
-
+			Button:
+				text: 'Aceptar'
+				on_release: root.verificar(producto_codigo.text, producto_nombre.text, producto_cantidad.text, producto_precio.text, spinner_catalogo.text, precio_compra.text)
 
 <NotificacionPopup>:
     size_hint: 0.6, 0.4
@@ -211,13 +226,29 @@
             on_release: root.dismiss()
 
 
-
 <VistaProductos>:
 	name: 'Productos'
 	BoxLayout:
+		orientation: 'horizontal'
 		BoxLayout:
 			padding: .5
 			orientation: 'vertical'
+			# === BUSCADOR SOLO PARA PRODUCTOS ===
+			BoxLayout:
+				size_hint_y: .06
+				spacing: .3
+				padding: .3
+				Label:
+					text: "🔍"
+					size_hint_x: .05
+					color: 0, 0, 0, 1
+				TextInput:
+					id: buscador_productos
+					hint_text: 'Buscar producto (código o nombre)'
+					multiline: False
+					write_tab: False
+					on_text: root.filtrar_productos(self.text)
+
 			BoxLayout:
 				size_hint_y: .05
 				spacing: .5
@@ -226,16 +257,25 @@
 					size_hint_x: .05
 				LabelOscuro:
 					text: 'Código  de Artículo'
-					size_hint_x: .35
+					size_hint_x: .20
 				LabelOscuro:
 					text: 'Artículo'
-					size_hint_x: .35
+					size_hint_x: .20
 				LabelOscuro:
 					text: 'Cantidad'
 					size_hint_x: .125
 				LabelOscuro:
+					text: 'Precio Compra'
+					size_hint_x: .125
+				LabelOscuro:
 					text: 'Precio  C/U'
 					size_hint_x: .125
+				Spinner:
+					id: spinner_catalogo_filtro
+					text: 'Catalogo'
+					values: ['TODOS']
+					size_hint_x: .125
+					on_text: root.filtrar_por_catalogo(self.text)
 
 			AdminRV:
 				id: rv_productos
@@ -304,12 +344,11 @@
 		BoxLayout:
 			size_hint_y: .1
 			Button:
-				text: 'Aceptar'
-				on_release: root.verificar(usuario_username.text, usuario_nombre.text, usuario_password.text, admin_tipo.state, empleado_tipo.state)
-			Button:
 				text: 'Salir sin hacer cambios'
 				on_release: root.dismiss()
-
+			Button:
+				text: 'Aceptar'
+				on_release: root.verificar(usuario_username.text, usuario_nombre.text, usuario_password.text, admin_tipo.state, empleado_tipo.state)
 
 <VistaUsuarios>:
 	name: 'Usuarios'
@@ -484,12 +523,15 @@
 				opacity: 0  # Invisible
 				on_text_validate: root.cargar_venta('Range')
 			BotonOscuro:
+				id: btn_ver_ventas
 				text: 'Ver ventas'
 				on_release: root.open_popup()
 			BotonOscuro:
+				id: btn_mas_info
 				text: 'Mas Info'
 				on_release: root.mas_info()
 			BotonOscuro:
+				id: btn_guardar_pdf
 				text: 'Guardar PDF'
 				on_release: root.crear_pdf()
 
@@ -556,15 +598,118 @@
 			orientation: 'vertical'
 			spacing: .5
 			BotonOscuro:
-				text: 'Impresora Epson'
+				id: btn_config_impresora
+				text: 'Prueba Impresora Epson'
 				on_release: root.configurar_impresora()
 			BotonOscuro:
-				text: 'Pistola Scanner'
+				id: btn_config_scanner
+				text: 'Prueba Pistola Scanner'
 				on_release: root.configurar_scanner()
+			BotonOscuro:
+				id: btn_abrir_turno
+				text: "Abrir Turno"
+				on_press: root.abrir_turno()
+			BotonOscuro:
+				id: btn_cerrar_turno
+				text: "Cerrar Turno"
+				on_press: root.cerrar_turno()
+
+<AdminLoginPopup>:
+    size_hint: 0.5, 0.5
+    auto_dismiss: False
+    title: 'Autenticación de Administrador'
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+        spacing: 10
+        Label:
+            text: 'Ingrese credenciales de administrador:'
+        TextInput:
+            id: admin_username
+            hint_text: 'Usuario'
+            multiline: False
+            write_tab: False
+			on_text_validate: root.verificar_admin(self.text, admin_password.text)
+        TextInput:
+            id: admin_password
+            hint_text: 'Contraseña'
+            multiline: False
+			write_tab: False
+			password: True
+			on_text_validate: root.verificar_admin(admin_username.text, self.text)
+        Label:
+			id: admin_login_notif
+			text: ''
+			size_hint_y: None
+			height: self.texture_size[1] + dp(20)
+			text_size: self.width, None
+			halign: 'center'
+			valign: 'middle'
+        BoxLayout:
+            size_hint_y: None
+			height: dp(60)
+			spacing: dp(50)
+			padding: dp(10)
+            Button:
+                text: 'Cancelar'
+                on_release: root.dismiss()
+            Button:
+                text: 'Ingresar'
+                on_release: root.verificar_admin(admin_username.text, admin_password.text)
+
+<VistaAdmin>:
+    name: 'Administrador'
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 20
+        Label:
+            text: 'Panel de Administración del Sistema'
+            font_size: 24
+            size_hint_y: 0.2
+        Button:
+            text: 'Acceder a Configuración Avanzada'
+            size_hint_y: 0.2
+            on_release: root.mostrar_login_admin()
+        Label:
+            text: 'Esta área requiere autenticación adicional'
+            italic: True
+            color: 0.5, 0.5, 0.5, 1
+
+<SystemStatusPopup>:
+    size_hint: 0.6, 0.5
+    auto_dismiss: False
+    title: 'Cambiar Estado del Sistema'
+    
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 10
+        
+        Label:
+            id: status_message
+            text: ''
+            font_size: 16
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+            size_hint_y: 0.6
+        
+        BoxLayout:
+            size_hint_y: 0.2
+            spacing: 10
+            padding: 10
+            
+            Button:
+                text: 'Cancelar'
+                on_release: root.dismiss()
+            
+            Button:
+                id: confirm_button
+                text: ''
+                on_release: root.confirmar()
 	
-
-
-
+			
 <CustomDropDown>:
 	canvas.before:
 		Color:
@@ -589,6 +734,11 @@
         on_release: root.vista(self.text)
 	Button:
 		text: 'Configuraciones'
+        size_hint_y: None
+        height: 44
+        on_release: root.vista(self.text)
+	Button:
+		text: 'Administrador'
         size_hint_y: None
         height: 44
         on_release: root.vista(self.text)
@@ -651,6 +801,8 @@
 			id: vista_ventas
 		VistaSettings:
 			id:	vista_configuraciones
+		VistaAdmin:
+			id:	vista_administrador
 
     BoxLayout:
-    	size_hint_y:.05
+    	size_hint_y:.05 ####v14---17

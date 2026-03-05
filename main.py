@@ -1,56 +1,286 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-import logging
-from logging.handlers import TimedRotatingFileHandler
 import os
+import sys
+import json
+import logging
+from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
+from kivy.uix.popup import Popup
+from kivy.uix.label import Label
+from kivy.clock import Clock
+from kivy.uix.button import Button
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.label import Label
 
 from Src.Views.sqlqueries import QueriesSQLServer
 from Src.Views.signin_view import SigninWindow
 from Src.Views.ventas_view import VentasWindow
-from Src.Views.admin_view import AdminWindow
-    
-server = 'DESKTOP-QGCQ59D\\SQLEXPRESS'
-database = 'PuntoventaDB'
-username = 'Elgomez05'
-password = '123456'
+from Src.Views.admin_view import AdminWindow, SystemManager
+from Src.Config.config_loader import config, CURRENT_USER
+from Src.Views.Settings import Herramientas
+from Src.Views.security import PasswordManager
 
+from kivy.core.window import Window
+
+os.environ["KIVY_NO_ARGS"] = "1"
 
 class MainWindow(BoxLayout):
-    connection = QueriesSQLServer.create_connection(server, database, username, password)
-    if connection:
-        # Crear tablas sin no existen
-        QueriesSQLServer.create_tables()
     def __init__(self, **kwargs):
-        super().__init__(*kwargs)
+        super().__init__(**kwargs)
         self.admin_widget=AdminWindow()
         self.ventas_widget=VentasWindow(self.admin_widget.actualizar_inventario)
-        self.signin_widget=SigninWindow(self.ventas_widget.usuario_loggin)
+        self.signin_widget = SigninWindow(self.on_login_success)
+        # self.signin_widget=SigninWindow(self.ventas_widget.usuario_loggin)
         self.ids.scrn_signin.add_widget(self.signin_widget)
         self.ids.scrn_ventas.add_widget(self.ventas_widget)
         self.ids.scrn_admin.add_widget(self.admin_widget)
+
         
     #def usuario_loggin(self, user_data):
     #    # Aquí debe ir el código de login
-    #    print(f"Usuario logueado en MainWindow: {user_data}")
+    #    logging.info(f"Usuario logueado en MainWindow: {user_data}")
     #    self.ventas_widget.usuario_loggin(user_data)  # Llamar el usuario_loggin en VentasWindow
 
-        
-        
+    def on_login_success(self, user_data):
+        """
+        Callback único post-login
+        """
+        logging.info(f"Login exitoso: {user_data}")
+
+        # Inyectar usuario en ventas
+        self.ventas_widget.usuario_loggin(user_data)
+        self.ids.screen_manager_main.current = "scrn_ventas"
+        Clock.schedule_once(lambda dt: TurnoPopup().open(), 0.3)
 
 
-class MainApp(App):
+class PuntoVenta(App):
+    next_terminal_id = 1
+    
     def build(self):
-        return MainWindow()
+        system_manager = SystemManager()  # Añade esta línea
+        
+        if not hasattr(QueriesSQLServer, "initialized"):
+            db_config = config.get("database")
+            QueriesSQLServer.bootstrap_database(db_config["database"])
+            logging.info("Inicializando base de datos...")
+            connection = QueriesSQLServer.create_connection(
+                db_config["server"],
+                db_config["database"],
+                db_config["username"],
+                db_config["password"]
+            )
+            if connection:
+                QueriesSQLServer.create_tables()
+                QueriesSQLServer.alter_productos_add_fields()
+                QueriesSQLServer.alter_usuarios_add_fields()
+
+                # ** Verificar si hay usuarios y crear uno por defecto si no hay ***
+                cursor = connection.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                        FROM usuarios WHERE tipo = 'administrador' 
+                            AND ISNULL(activo, 1) = 1 AND username IN ('Elgomez05', 'admin')""")#####
+                user_count = cursor.fetchone()[0]
+                
+                if user_count == 0:
+                    logging.info("No hay usuarios administradores en la base de datos, creando usuario tipo administrador por defecto")
+                    try:
+                        # Verificar si ya existe usuarios (aunque inactivo)
+                        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE username IN ('Elgomez05', 'admin')")
+                        admin_exists = cursor.fetchone()[0]
+                        
+                        if admin_exists > 0:
+                            # Reactivar usuario administrador existente
+                            cursor.execute("""
+                                UPDATE usuarios 
+                                SET ISNULL(activo, 1) = 1, tipo = 'administrador'
+                                WHERE username IN ('Elgomez05', 'admin')""")
+                            logging.info(f"Usuario {admin_exists} reactivado como administrador")
+                        else:
+                            # Encriptar contraseña
+                            hashed_password = PasswordManager.hash_password("Yeferson#05314")
+
+                            cursor.execute("""
+                                INSERT INTO usuarios (username, nombre, password, tipo, activo)
+                                VALUES (?, ?, ?, ?, 1)
+                            """, ('Elgomez05', 'Administrador', hashed_password, 'administrador'))
+                            logging.info("Usuario administrador creado: Correctamente")
+                        connection.commit()
+                    except Exception as e:
+                        logging.error(f"Error creando usuario por defecto: {e}")
+                else:
+                    logging.info(f"Ya existen {user_count} administrador(es) activo(s)")
+                cursor.close()
+                logging.info("Base de datos inicializada correctamente")
+            else:
+                logging.error("No se pudo conectar a la base de datos")
+
+            QueriesSQLServer.initialized = True
+
+        if "--subterminal" not in sys.argv:
+            logging.info("Iniciando aplicación principal POS...")
+
+            # Verificar estado del sistema al iniciar
+            estado = "RESTAURADO" if system_manager.esta_activo() else "BLOQUEADO"
+            logging.info(f"Sistema iniciado en modo: {estado}")
+            return MainWindow()
+
+        logging.info("Iniciando subterminal independiente...")
+        terminal_id = 1
+        user_data = {"nombre": "Usuario", "tipo": "empleado"}
+
+        try:
+            idx = sys.argv.index("--subterminal") + 1
+            data = json.loads(sys.argv[idx])
+            terminal_id = data.get("terminal_id", 1)
+            user_data = data.get("user", user_data)
+
+            CURRENT_USER.clear()
+            CURRENT_USER.update(user_data)
+
+            self.next_terminal_id = max(self.next_terminal_id, terminal_id)
+        except Exception as e:
+            logging.error(f"Error leyendo argumentos: {e}")
+
+        ventas = VentasWindow(
+            actualizar_inventario_callback=self._actualizar_sub_inventario,
+            terminal_id=terminal_id,
+            user_data=user_data
+        )
+        ventas.usuario_loggin(user_data)
+        return ventas
+
+    def _actualizar_sub_inventario(self, datos):
+        # Reusar actualización desde Admin
+        try:
+            win = self.root.admin_widget
+            win.actualizar_inventario(datos)
+        except:
+            logging.info("Actualización inventario subterminal ejecutada")
+
+    def _dispatch_scanner_code(self, codigo):
+        app = App.get_running_app()
+        root = app.root
+
+        # Ventas
+        if hasattr(root, "ventas_widget"):
+            root.ventas_widget.agregar_producto_codigo(codigo)
+
+        # # Admin
+        # if hasattr(root, "admin_widget"):
+        #     root.admin_widget.agregar_producto(codigo)
+
+class TurnoPopup(Popup):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "Verificación de Turno"
+        self.size_hint = (None, None)
+        self.size = (400, 300)
+
+        # BoxLayout para contenido del Popup
+        self.layout = BoxLayout(orientation="vertical")
+        self.message_label = Label(text="Verificando el estado del turno...", size_hint=(1, 0.8))
+        self.layout.add_widget(self.message_label)
+
+        self.close_button = Button(text="Cerrar", size_hint=(1, 0.2))
+        self.close_button.bind(on_release=self.dismiss)
+        self.layout.add_widget(self.close_button)
+
+        self.add_widget(self.layout)
+
+        # Iniciar verificación
+        Clock.schedule_once(self.verificar_turno, 0)
+
+    def verificar_turno(self, dt):
+        # Ruta de control del turno
+        path = "C:/ProgramData/PuntoVenta/shiftControl/controlShift.json"
+
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                turno_data = json.load(f)
+                if turno_data.get("Status") == "ABIERTO":
+                    self.message_label.text = "Turno Abierto. Puedes seguir facturando."
+                else:
+                    self.message_label.text = "Turno cerrado. Abriendo turno..."
+                    self.abrir_turno()  # Si el turno está cerrado, lo abrimos.
+        else:
+            self.message_label.text = "No se encontró archivo de turno. Abriendo turno..."
+            self.abrir_turno()
+
+    def abrir_turno(self):
+        path = "C:/ProgramData/PuntoVenta/shiftControl/controlShift.json"
+        turno_data = {
+            "Status": "ABIERTO",
+            "Id_Shift": 1,
+            "cashInitial": 0,
+            "cashFinal": 0,
+            "user": "POS",
+            "Id_Device": 1
+        }
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(turno_data, f, indent=4)
+        logging.info("Turno abierto correctamente.")
+        self.message_label.text = "Turno abierto con éxito. Puede continuar facturando."
+
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level       = logging.DEBUG,
-        format      = "%(asctime)s [%(levelname)s]    %(module)s:%(lineno)d    %(funcName)s    | %(message)s" ,
-        datefmt     = '%Y-%m-%d %H:%M:%S',
-        handlers    = [
-            # TimedRotatingFileHandler(f"{logsFolder}/logs_reports.log", when    = "midnight", interval    = 1, backupCount    = 30),
-            logging.StreamHandler()
-        ]
+    
+    # # ===================================== # #
+    # #  CONFIGURACIÓN DE LOGS
+    # # ===================================== # #
+
+    LOG_DIR = r"C:\ProgramData\PuntoVenta\Logs"
+    os.makedirs(LOG_DIR, exist_ok=True)
+
+    file_handler = TimedRotatingFileHandler(f"{LOG_DIR}/App_logs.log", when="midnight", 
+                interval=1, backupCount=30, encoding="utf-8")
+                
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(module)s:%(lineno)d | %(message)s",
+            "%d-%m-%Y %H:%M:%S %p"
+        )
     )
-    MainApp().run()
+    # logging.getLogger().addHandler(file_handler)
+    root_logger = logging.getLogger()
+
+    if not any(isinstance(h, TimedRotatingFileHandler) for h in root_logger.handlers):
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(file_handler)
+
+    # logging.info("Guardando logs correctamente")
+
+    # ===================================== # #
+    #         CARGA CENTRALIZADA DE KV 
+    # ===================================== # #
+
+    from kivy.lang import Builder
+
+    kv_base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Src", "Views")
+    kv_files = [
+        "signin_view.kv",
+        "ventas_view.kv", 
+        "admin_view.kv"
+    ]
+
+    # Verificar si ya se cargaron archivos KV
+    kv_loaded_key = '__kv_loaded__'
+    if not hasattr(Builder, kv_loaded_key):
+        for kv_file in kv_files:
+            kv_path = os.path.join(kv_base_path, kv_file)
+            if os.path.exists(kv_path):
+                try:
+                    Builder.load_file(kv_path)
+                    logging.info(f"Archivo KV cargado: {kv_file}")
+                except Exception as e:
+                    logging.error(f"Error cargando {kv_file}: {e}")
+            else:
+                logging.warning(f"Archivo KV no encontrado: {kv_path}")
+        setattr(Builder, kv_loaded_key, True)
+    else:
+        logging.info("Archivos KV ya cargados previamente")
+
+    PuntoVenta().run()#######v16
     
